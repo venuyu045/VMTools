@@ -1,0 +1,10 @@
+{
+  "required": true,
+  "package": "com.venus.vmtools.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

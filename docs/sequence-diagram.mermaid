@@ -1,0 +1,24 @@
+sequenceDiagram
+    participant MC as MinecraftClient
+    participant VC as VMToolsClient
+    participant WM as WaypointManager
+    participant KM as KeybindManager
+    participant WS as WaypointService
+    participant GS as GroupService
+    participant TS as TeleportService
+    participant IES as ImportExportService
+
+    MC->>VC: onInitializeClient()
+    VC->>WM: new WaypointManager()
+    WM->>WM: load()
+    
+    VC->>WS: new WaypointService(waypointManager)
+    VC->>GS: new GroupService(waypointManager)
+    VC->>TS: new TeleportService(config)
+    VC->>IES: new ImportExportService(waypointManager)
+    
+    VC->>KM: new KeybindManager()
+    KM->>KM: register()
+    
+    VC->>MC: register CLIENT_STOPPING event
+    MC-->>VC: 保存所有数据

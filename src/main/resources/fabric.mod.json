@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "vmtools",
+  "version": "${version}",
+  "name": "Venus Mc Tools",
+  "description": "A collection of useful tools for Minecraft, including waypoint management with quick teleport.",
+  "authors": [
+    "Venus"
+  ],
+  "contact": {
+    "sources": "https://github.com/venus/vmtools"
+  },
+  "license": "MIT",
+  "icon": "assets/vmtools/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.venus.vmtools.VMToolsClient"
+    ]
+  },
+  "mixins": [
+    "vmtools.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
