@@ -1,9 +1,9 @@
 package com.venus.vmtools.gui.component;
 
 import com.venus.vmtools.feature.waypoint.WaypointColor;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.network.chat.Component;
 
 import java.util.function.Consumer;
 
@@ -52,7 +52,7 @@ public class ColorPicker {
     /**
      * 渲染颜色选择器
      */
-    public void render(DrawContext context, int mouseX, int mouseY, int centerX) {
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, int centerX) {
         int totalWidth = colors.length * (COLOR_SIZE + COLOR_SPACING) - COLOR_SPACING;
         int startX = centerX - totalWidth / 2;
 
@@ -107,12 +107,12 @@ public class ColorPicker {
 
     // ==================== 绘制工具方法 ====================
 
-    private void fillRoundedRect(DrawContext context, int x, int y, int width, int height, int color) {
+    private void fillRoundedRect(GuiGraphicsExtractor context, int x, int y, int width, int height, int color) {
         context.fill(x + 2, y, x + width - 2, y + height, color);
         context.fill(x, y + 2, x + width, y + height - 2, color);
     }
 
-    private void drawBorder(DrawContext context, int x, int y, int width, int height, int color) {
+    private void drawBorder(GuiGraphicsExtractor context, int x, int y, int width, int height, int color) {
         context.fill(x, y, x + width, y + 1, color);
         context.fill(x, y + height - 1, x + width, y + height, color);
         context.fill(x, y, x + 1, y + height, color);

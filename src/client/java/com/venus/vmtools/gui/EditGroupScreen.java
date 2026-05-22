@@ -5,12 +5,12 @@ import com.venus.vmtools.feature.waypoint.WaypointColor;
 import com.venus.vmtools.feature.waypoint.WaypointGroup;
 import com.venus.vmtools.feature.waypoint.WaypointManager;
 import com.venus.vmtools.gui.component.ToastWidget;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 
 /**
  * 分组编辑界面（添加/编辑）- 自定义颜色选择器
@@ -33,7 +33,7 @@ public class EditGroupScreen extends Screen {
     private final WaypointGroup editingGroup;
     private final boolean isEditMode;
 
-    private TextFieldWidget nameField;
+    private EditBox nameField;
     private WaypointColor selectedColor = WaypointColor.BLUE;
     private WaypointManager waypointManager;
 
@@ -43,7 +43,7 @@ public class EditGroupScreen extends Screen {
     private static final int COLOR_SPACING = 4;
 
     public EditGroupScreen(WaypointScreen parentScreen, WaypointGroup editingGroup) {
-        super(Text.of(editingGroup == null ? "添加分组" : "编辑分组"));
+        super(Component.literal(editingGroup == null ? "添加分组" : "编辑分组"));
         this.parentScreen = parentScreen;
         this.editingGroup = editingGroup;
         this.isEditMode = editingGroup != null;
@@ -58,15 +58,15 @@ public class EditGroupScreen extends Screen {
         int panelY = centerY - PANEL_HEIGHT / 2;
 
         // 名称输入框
-        nameField = new TextFieldWidget(this.textRenderer,
+        nameField = new EditBox(this.font,
                 panelX + PADDING + 60, panelY + 35,
                 PANEL_WIDTH - PADDING * 2 - 60, 18,
-                Text.of("分组名称"));
-        nameField.setPlaceholder(Text.literal("输入分组名称...").styled(s -> s.withColor(SUBTLE_COLOR)));
+                Component.literal("分组名称"));
+        nameField.setHint(Component.literal("输入分组名称...").withStyle(s -> s.withColor(SUBTLE_COLOR)));
         if (isEditMode) {
-            nameField.setText(editingGroup.getName());
+            nameField.setValue(editingGroup.getName());
         }
-        this.addDrawableChild(nameField);
+        this.addRenderableWidget(nameField);
 
         // 颜色选择器位置
         WaypointColor[] colors = WaypointColor.values();
@@ -79,20 +79,20 @@ public class EditGroupScreen extends Screen {
         }
 
         // 保存按钮
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal(isEditMode ? "保存修改" : "添加分组"),
+        this.addRenderableWidget(Button.builder(
+                Component.literal(isEditMode ? "保存修改" : "添加分组"),
                 button -> saveGroup()
-        ).dimensions(panelX + PADDING, panelY + PANEL_HEIGHT - 35, 100, 22).build());
+        ).bounds(panelX + PADDING, panelY + PANEL_HEIGHT - 35, 100, 22).build());
 
         // 取消按钮
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("取消"),
-                button -> this.close()
-        ).dimensions(panelX + PANEL_WIDTH - PADDING - 60, panelY + PANEL_HEIGHT - 35, 60, 22).build());
+        this.addRenderableWidget(Button.builder(
+                Component.literal("取消"),
+                button -> this.onClose()
+        ).bounds(panelX + PANEL_WIDTH - PADDING - 60, panelY + PANEL_HEIGHT - 35, 60, 22).build());
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         // 半透明背景
         context.fill(0, 0, this.width, this.height, 0xCC000000);
 
@@ -116,13 +116,13 @@ public class EditGroupScreen extends Screen {
         // 渲染颜色选择器
         renderColorPicker(context, mouseX, mouseY);
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     /**
      * 渲染颜色选择器
      */
-    private void renderColorPicker(DrawContext context, int mouseX, int mouseY) {
+    private void renderColorPicker(GuiGraphicsExtractor context, int mouseX, int mouseY) {
         WaypointColor[] colors = WaypointColor.values();
 
         for (int i = 0; i < colors.length; i++) {
@@ -156,10 +156,10 @@ public class EditGroupScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubleClick) {
-        double mouseX = click.x();
-        double mouseY = click.y();
-        int button = click.button();
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
 
         // 左键点击颜色选择器
         if (button == 0) {
@@ -176,14 +176,14 @@ public class EditGroupScreen extends Screen {
             }
         }
 
-        return super.mouseClicked(click, doubleClick);
+        return super.mouseClicked(event, doubleClick);
     }
 
     /**
      * 保存分组
      */
     private void saveGroup() {
-        String name = nameField.getText().trim();
+        String name = nameField.getValue().trim();
 
         // 验证输入
         if (name.isEmpty()) {
@@ -206,39 +206,39 @@ public class EditGroupScreen extends Screen {
         }
 
         // 返回父界面
-        this.close();
+        this.onClose();
     }
 
     @Override
-    public void close() {
-        this.client.setScreen(parentScreen);
+    public void onClose() {
+        this.minecraft.setScreen(parentScreen);
     }
 
     // ==================== 绘制工具方法 ====================
 
-    private void fillRoundedRect(DrawContext context, int x, int y, int width, int height, int color) {
+    private void fillRoundedRect(GuiGraphicsExtractor context, int x, int y, int width, int height, int color) {
         context.fill(x + 2, y, x + width - 2, y + height, color);
         context.fill(x, y + 2, x + width, y + height - 2, color);
     }
 
-    private void drawBorder(DrawContext context, int x, int y, int width, int height, int color) {
+    private void drawBorder(GuiGraphicsExtractor context, int x, int y, int width, int height, int color) {
         context.fill(x, y, x + width, y + 2, color);
         context.fill(x, y + height - 2, x + width, y + height, color);
         context.fill(x, y, x + 2, y + height, color);
         context.fill(x + width - 2, y, x + width, y + height, color);
     }
 
-    private void drawText(DrawContext context, String text, int x, int y, int color) {
-        context.drawTextWithShadow(this.textRenderer, text, x, y, color);
+    private void drawText(GuiGraphicsExtractor context, String text, int x, int y, int color) {
+        context.text(this.font, text, x, y, color);
     }
 
-    private void drawCenteredText(DrawContext context, String text, int centerX, int y, int color) {
-        int textWidth = this.textRenderer.getWidth(text);
-        context.drawTextWithShadow(this.textRenderer, text, centerX - textWidth / 2, y, color);
+    private void drawCenteredText(GuiGraphicsExtractor context, String text, int centerX, int y, int color) {
+        int textWidth = this.font.width(text);
+        context.text(this.font, text, centerX - textWidth / 2, y, color);
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 }

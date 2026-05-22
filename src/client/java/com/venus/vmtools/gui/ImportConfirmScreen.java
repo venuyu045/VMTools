@@ -5,11 +5,11 @@ import com.venus.vmtools.feature.waypoint.WaypointGroup;
 import com.venus.vmtools.feature.waypoint.WaypointIO;
 import com.venus.vmtools.feature.waypoint.WaypointManager;
 import com.venus.vmtools.gui.component.ToastWidget;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.network.chat.Component;
 
 import java.util.List;
 
@@ -36,7 +36,7 @@ public class ImportConfirmScreen extends Screen {
     private int importMode = 0; // 0=追加, 1=替换
 
     public ImportConfirmScreen(Screen parent, List<WaypointGroup> importGroups) {
-        super(Text.of("确认导入"));
+        super(Component.literal("确认导入"));
         this.parent = parent;
         this.importGroups = importGroups;
         this.totalWaypoints = importGroups.stream()
@@ -55,32 +55,32 @@ public class ImportConfirmScreen extends Screen {
         int buttonWidth = 80;
 
         // 追加模式按钮
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("追加导入"),
+        this.addRenderableWidget(Button.builder(
+                Component.literal("追加导入"),
                 button -> {
                     importMode = 0;
                     doImport();
                 }
-        ).dimensions(centerX - buttonWidth - 10, buttonY, buttonWidth, 25).build());
+        ).bounds(centerX - buttonWidth - 10, buttonY, buttonWidth, 25).build());
 
         // 替换模式按钮
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("替换全部"),
+        this.addRenderableWidget(Button.builder(
+                Component.literal("替换全部"),
                 button -> {
                     importMode = 1;
                     doImport();
                 }
-        ).dimensions(centerX + 10, buttonY, buttonWidth, 25).build());
+        ).bounds(centerX + 10, buttonY, buttonWidth, 25).build());
 
         // 取消按钮
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("取消"),
-                button -> close()
-        ).dimensions(centerX - 30, buttonY + 30, 60, 20).build());
+        this.addRenderableWidget(Button.builder(
+                Component.literal("取消"),
+                button -> onClose()
+        ).bounds(centerX - 30, buttonY + 30, 60, 20).build());
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         // 半透明背景
         context.fill(0, 0, this.width, this.height, 0x80000000);
 
@@ -134,7 +134,7 @@ public class ImportConfirmScreen extends Screen {
         drawCenteredText(context, "替换全部: 清空现有数据，只保留导入的数据", centerX, contentY, DANGER_COLOR);
 
         // 渲染子组件
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     private void doImport() {
@@ -149,34 +149,34 @@ public class ImportConfirmScreen extends Screen {
         int count = manager.importWaypoints(importGroups);
 
         ToastWidget.showSuccess("成功导入 " + count + " 个路径点");
-        close();
+        onClose();
     }
 
     @Override
-    public void close() {
-        if (this.client != null) {
-            this.client.setScreen(parent);
+    public void onClose() {
+        if (this.minecraft != null) {
+            this.minecraft.setScreen(parent);
         }
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubleClick) {
-        return super.mouseClicked(click, doubleClick);
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        return super.mouseClicked(event, doubleClick);
     }
 
     // 绘制工具
-    private void fillRoundedRect(DrawContext context, int x, int y, int width, int height, int color) {
+    private void fillRoundedRect(GuiGraphicsExtractor context, int x, int y, int width, int height, int color) {
         context.fill(x + 2, y, x + width - 2, y + height, color);
         context.fill(x, y + 2, x + width, y + height - 2, color);
     }
 
-    private void drawCenteredText(DrawContext context, String text, int centerX, int y, int color) {
-        int textWidth = this.textRenderer.getWidth(text);
-        context.drawTextWithShadow(this.textRenderer, text, centerX - textWidth / 2, y, color);
+    private void drawCenteredText(GuiGraphicsExtractor context, String text, int centerX, int y, int color) {
+        int textWidth = this.font.width(text);
+        context.text(this.font, text, centerX - textWidth / 2, y, color);
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 }

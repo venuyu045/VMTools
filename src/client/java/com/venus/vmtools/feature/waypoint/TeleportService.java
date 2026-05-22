@@ -1,15 +1,15 @@
 package com.venus.vmtools.feature.waypoint;
 
 import com.venus.vmtools.VMToolsClient;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 /**
  * 传送服务 - 专门处理传送命令发送
  */
 public class TeleportService {
 
-    private static final MinecraftClient client = MinecraftClient.getInstance();
+    private static final Minecraft client = Minecraft.getInstance();
 
     /**
      * 发送传送命令
@@ -18,7 +18,7 @@ public class TeleportService {
      * @return 是否成功发送
      */
     public static boolean sendCommand(String command) {
-        if (client.player == null || client.getNetworkHandler() == null) {
+        if (client.player == null || client.getConnection() == null) {
             VMToolsClient.LOGGER.warn("无法传送：玩家未连接到服务器");
             return false;
         }
@@ -35,19 +35,17 @@ public class TeleportService {
         client.execute(() -> {
             try {
                 // 使用 networkHandler.sendChatCommand 发送命令（不显示在聊天栏）
-                client.getNetworkHandler().sendChatCommand(finalCommand);
+                client.getConnection().sendCommand(finalCommand);
                 VMToolsClient.LOGGER.info("已发送传送命令: /{}", finalCommand);
 
                 // 显示成功提示
-                client.player.sendMessage(
-                        Text.literal("[VMTools] 已发送传送命令"),
-                        true
+                client.player.sendOverlayMessage(
+                        Component.literal("[VMTools] 已发送传送命令")
                 );
             } catch (Exception e) {
                 VMToolsClient.LOGGER.error("发送命令失败", e);
-                client.player.sendMessage(
-                        Text.literal("[VMTools] 传送失败: " + e.getMessage()),
-                        true
+                client.player.sendOverlayMessage(
+                        Component.literal("[VMTools] 传送失败: " + e.getMessage())
                 );
             }
         });

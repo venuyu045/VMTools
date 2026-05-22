@@ -1,9 +1,9 @@
 package com.venus.vmtools.gui.component;
 
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 
 import java.util.function.Consumer;
 
@@ -12,14 +12,14 @@ import java.util.function.Consumer;
  */
 public class SearchField {
 
-    private final TextFieldWidget textField;
+    private final EditBox textField;
     private Consumer<String> onSearchChanged;
     private String lastQuery = "";
 
-    public SearchField(TextRenderer textRenderer, int x, int y, int width, int height) {
-        this.textField = new TextFieldWidget(textRenderer, x, y, width, height, Text.of("搜索"));
-        this.textField.setPlaceholder(Text.literal("🔍 搜索路径点...").styled(s -> s.withColor(0xFF888888)));
-        this.textField.setChangedListener(this::onTextChanged);
+    public SearchField(Font textRenderer, int x, int y, int width, int height) {
+        this.textField = new EditBox(textRenderer, x, y, width, height, Component.literal("搜索"));
+        this.textField.setHint(Component.literal("🔍 搜索路径点...").withStyle(s -> s.withColor(0xFF888888)));
+        this.textField.setResponder(this::onTextChanged);
     }
 
     /**
@@ -32,7 +32,7 @@ public class SearchField {
     /**
      * 获取搜索框控件
      */
-    public TextFieldWidget getWidget() {
+    public EditBox getWidget() {
         return textField;
     }
 
@@ -40,14 +40,14 @@ public class SearchField {
      * 获取当前搜索关键词
      */
     public String getSearchQuery() {
-        return textField.getText().trim();
+        return textField.getValue().trim();
     }
 
     /**
      * 清空搜索框
      */
     public void clear() {
-        textField.setText("");
+        textField.setValue("");
     }
 
     /**
@@ -60,8 +60,8 @@ public class SearchField {
     /**
      * 渲染搜索框
      */
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        textField.render(context, mouseX, mouseY, delta);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        textField.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     /**

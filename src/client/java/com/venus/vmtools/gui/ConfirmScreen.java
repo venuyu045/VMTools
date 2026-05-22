@@ -1,11 +1,11 @@
 package com.venus.vmtools.gui;
 
 import com.venus.vmtools.gui.component.ToastWidget;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.network.chat.Component;
 
 import java.util.function.Consumer;
 
@@ -32,7 +32,7 @@ public class ConfirmScreen extends Screen {
 
     public ConfirmScreen(Screen parent, String title, String message, String confirmText,
                          Runnable onConfirm, Runnable onCancel) {
-        super(Text.of(title));
+        super(Component.literal(title));
         this.parent = parent;
         this.title = title;
         this.message = message;
@@ -66,26 +66,26 @@ public class ConfirmScreen extends Screen {
         int buttonWidth = 70;
 
         // 确认按钮
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal(confirmText),
+        this.addRenderableWidget(Button.builder(
+                Component.literal(confirmText),
                 button -> {
                     if (onConfirm != null) onConfirm.run();
-                    close();
+                    onClose();
                 }
-        ).dimensions(centerX - buttonWidth - 10, buttonY, buttonWidth, 20).build());
+        ).bounds(centerX - buttonWidth - 10, buttonY, buttonWidth, 20).build());
 
         // 取消按钮
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("取消"),
+        this.addRenderableWidget(Button.builder(
+                Component.literal("取消"),
                 button -> {
                     if (onCancel != null) onCancel.run();
-                    close();
+                    onClose();
                 }
-        ).dimensions(centerX + 10, buttonY, buttonWidth, 20).build());
+        ).bounds(centerX + 10, buttonY, buttonWidth, 20).build());
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         // 半透明背景
         context.fill(0, 0, this.width, this.height, 0x80000000);
 
@@ -104,34 +104,34 @@ public class ConfirmScreen extends Screen {
         // 消息
         drawCenteredText(context, message, centerX, panelY + 45, TEXT_COLOR);
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     @Override
-    public void close() {
-        if (this.client != null) {
-            this.client.setScreen(parent);
+    public void onClose() {
+        if (this.minecraft != null) {
+            this.minecraft.setScreen(parent);
         }
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubleClick) {
-        return super.mouseClicked(click, doubleClick);
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        return super.mouseClicked(event, doubleClick);
     }
 
     // 绘制工具
-    private void fillRoundedRect(DrawContext context, int x, int y, int width, int height, int color) {
+    private void fillRoundedRect(GuiGraphicsExtractor context, int x, int y, int width, int height, int color) {
         context.fill(x + 2, y, x + width - 2, y + height, color);
         context.fill(x, y + 2, x + width, y + height - 2, color);
     }
 
-    private void drawCenteredText(DrawContext context, String text, int centerX, int y, int color) {
-        int textWidth = this.textRenderer.getWidth(text);
-        context.drawTextWithShadow(this.textRenderer, text, centerX - textWidth / 2, y, color);
+    private void drawCenteredText(GuiGraphicsExtractor context, String text, int centerX, int y, int color) {
+        int textWidth = this.font.width(text);
+        context.text(this.font, text, centerX - textWidth / 2, y, color);
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 }
