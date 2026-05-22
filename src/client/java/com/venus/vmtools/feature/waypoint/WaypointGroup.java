@@ -42,6 +42,18 @@ public class WaypointGroup {
     }
 
     /**
+     * 移动路径点位置（拖拽排序）
+     */
+    public void moveWaypoint(int fromIndex, int toIndex) {
+        if (fromIndex < 0 || fromIndex >= waypoints.size() ||
+            toIndex < 0 || toIndex > waypoints.size() ||
+            fromIndex == toIndex) return;
+        Waypoint wp = waypoints.remove(fromIndex);
+        int insertIndex = toIndex > fromIndex ? toIndex - 1 : toIndex;
+        waypoints.add(insertIndex, wp);
+    }
+
+    /**
      * 查找路径点
      */
     public Waypoint findWaypoint(String waypointId) {

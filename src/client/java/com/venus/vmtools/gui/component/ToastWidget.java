@@ -82,39 +82,74 @@ public class ToastWidget {
             // 计算透明度
             float alpha;
             if (age < FADE_DURATION) {
-                // 淡入
                 alpha = (float) age / FADE_DURATION;
             } else if (age > TOAST_DURATION - FADE_DURATION) {
-                // 淡出
                 alpha = (float) (TOAST_DURATION - age) / FADE_DURATION;
             } else {
                 alpha = 1.0f;
             }
 
+            // 计算自适应宽度（限制最大宽度，超出则换行）
+            String icon = toast.type.getIcon();
+            int maxToastWidth = 350;
+            int maxTextWidth = maxToastWidth - 50; // 留给图标和边距
+            int textWidth = client.textRenderer.getWidth(toast.message);
+
+            // 拆分为多行
+            java.util.List<String> lines = new java.util.ArrayList<>();
+            if (textWidth <= maxTextWidth) {
+                lines.add(toast.message);
+            } else {
+                // 按最大宽度拆行
+                String remaining = toast.message;
+                while (!remaining.isEmpty()) {
+                    int fitLen = 0;
+                    for (int i = 1; i <= remaining.length(); i++) {
+                        if (client.textRenderer.getWidth(remaining.substring(0, i)) > maxTextWidth) {
+                            fitLen = i - 1;
+                            break;
+                        }
+                        fitLen = i;
+                    }
+                    if (fitLen <= 0) fitLen = 1;
+                    lines.add(remaining.substring(0, fitLen));
+                    remaining = remaining.substring(fitLen);
+                }
+            }
+
+            // 计算实际宽度
+            int actualTextWidth = 0;
+            for (String line : lines) {
+                actualTextWidth = Math.max(actualTextWidth, client.textRenderer.getWidth(line));
+            }
+            int toastWidth = Math.min(maxToastWidth, Math.max(150, actualTextWidth + 50));
+            int toastHeight = lines.size() * 12 + 12; // 每行12px + 上下padding
+
             // 计算位置（右上角）
-            int x = screenWidth - TOAST_WIDTH - TOAST_MARGIN;
+            int x = screenWidth - toastWidth - TOAST_MARGIN;
             int y = TOAST_MARGIN + yOffset;
 
             // 渲染背景
             int backgroundColor = toast.type.getBackgroundColor(alpha);
-            context.fill(x, y, x + TOAST_WIDTH, y + TOAST_HEIGHT, backgroundColor);
+            context.fill(x, y, x + toastWidth, y + toastHeight, backgroundColor);
 
             // 渲染边框
             int borderColor = toast.type.getBorderColor(alpha);
-            context.fill(x, y, x + TOAST_WIDTH, y + 1, borderColor);
-            context.fill(x, y + TOAST_HEIGHT - 1, x + TOAST_WIDTH, y + TOAST_HEIGHT, borderColor);
-            context.fill(x, y, x + 1, y + TOAST_HEIGHT, borderColor);
-            context.fill(x + TOAST_WIDTH - 1, y, x + TOAST_WIDTH, y + TOAST_HEIGHT, borderColor);
+            context.fill(x, y, x + toastWidth, y + 1, borderColor);
+            context.fill(x, y + toastHeight - 1, x + toastWidth, y + toastHeight, borderColor);
+            context.fill(x, y, x + 1, y + toastHeight, borderColor);
+            context.fill(x + toastWidth - 1, y, x + toastWidth, y + toastHeight, borderColor);
 
-            // 渲染图标
-            String icon = toast.type.getIcon();
-            context.drawTextWithShadow(client.textRenderer, icon, x + 8, y + 8, 0xFFFFFFFF);
+            // 渲染图标（第一行旁边）
+            context.drawTextWithShadow(client.textRenderer, icon, x + 8, y + 6, 0xFFFFFFFF);
 
-            // 渲染文字
+            // 渲染文字（多行）
             int textColor = toast.type.getTextColor(alpha);
-            context.drawTextWithShadow(client.textRenderer, toast.message, x + 28, y + 8, textColor);
+            for (int i = 0; i < lines.size(); i++) {
+                context.drawTextWithShadow(client.textRenderer, lines.get(i), x + 28, y + 6 + i * 12, textColor);
+            }
 
-            yOffset += TOAST_HEIGHT + TOAST_MARGIN;
+            yOffset += toastHeight + TOAST_MARGIN;
         }
     }
 
