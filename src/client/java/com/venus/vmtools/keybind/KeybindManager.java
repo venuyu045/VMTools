@@ -6,9 +6,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.option.KeyBinding.Category;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -26,8 +24,8 @@ public class KeybindManager {
      * 注册所有快捷键
      */
     public void register() {
-        // 创建快捷键分类
-        Category vmtoolsCategory = Category.create(Identifier.of("vmtools", "main"));
+        // 快捷键分类（1.21.6 使用字符串分类，无 Category 内部类）
+        String vmtoolsCategory = "category.vmtools";
 
         // 注册路径点管理快捷键
         waypointKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(

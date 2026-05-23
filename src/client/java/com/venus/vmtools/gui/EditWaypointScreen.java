@@ -7,7 +7,6 @@ import com.venus.vmtools.feature.waypoint.WaypointColor;
 import com.venus.vmtools.feature.waypoint.WaypointGroup;
 import com.venus.vmtools.feature.waypoint.WaypointManager;
 import com.venus.vmtools.gui.component.ToastWidget;
-import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -52,7 +51,18 @@ public class EditWaypointScreen extends Screen {
     private int cyclerX, cyclerY, cyclerWidth;
     private static final int CYCLER_HEIGHT = 20;
 
-    // 颜色选择器布局
+    // 自动确认传送
+    private int autoConfirmState = 0; // 0=跟随全局, 1=开启, 2=关闭
+    private int autoConfirmX, autoConfirmY;
+    private static final int AUTO_CONFIRM_HEIGHT = 14;
+
+    // 命令补全
+    private static final String[] COMMAND_SUGGESTIONS = {
+            "res tp ", "warp ", "home", "tpa ", "tpask ", "ehome"
+    };
+    private java.util.List<String> suggestionList = new java.util.ArrayList<>();
+    private int selectedSuggestionIndex = 0; // 键盘选中的索引
+    private int suggestionPanelX, suggestionPanelY, suggestionPanelW;
     private int colorPickerX, colorPickerY;
     private static final int COLOR_SIZE = 22;
     private static final int COLOR_SPACING = 4;
@@ -111,7 +121,13 @@ public class EditWaypointScreen extends Screen {
         commandField.setPlaceholder(Text.literal("/res tp xxx").styled(s -> s.withColor(SUBTLE_COLOR)));
         if (isEditMode) {
             commandField.setText(editingWaypoint.getCommand());
+        } else {
+            commandField.setText("/"); // 新建时默认带 /
         }
+        commandField.setChangedListener(text -> {
+            // 更新命令补全建议
+            updateSuggestion(text);
+        });
         this.addDrawableChild(commandField);
 
         // 分组选择器布局
@@ -127,24 +143,31 @@ public class EditWaypointScreen extends Screen {
 
         if (isEditMode) {
             selectedColor = editingWaypoint.getColor();
+            // 加载自动确认状态
+            Boolean wpAC = editingWaypoint.getAutoConfirm();
+            autoConfirmState = (wpAC != null && wpAC) ? 1 : 0;
         }
+
+        // 自动确认勾选框位置
+        autoConfirmX = panelX + PADDING;
+        autoConfirmY = panelY + 160;
 
         // 保存按钮
         this.addDrawableChild(ButtonWidget.builder(
                 Text.literal(isEditMode ? "保存修改" : "添加路径点"),
                 button -> saveWaypoint()
-        ).dimensions(panelX + PADDING, panelY + PANEL_HEIGHT - 35, 100, 22).build());
+        ).dimensions(panelX + PADDING, panelY + PANEL_HEIGHT - 35, 100, 20).build());
 
         // 取消按钮
         this.addDrawableChild(ButtonWidget.builder(
                 Text.literal("取消"),
                 button -> this.close()
-        ).dimensions(panelX + PANEL_WIDTH - PADDING - 60, panelY + PANEL_HEIGHT - 35, 60, 22).build());
+        ).dimensions(panelX + PANEL_WIDTH - PADDING - 60, panelY + PANEL_HEIGHT - 35, 60, 20).build());
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // 半透明背景
+        // 1. 半透明背景填充
         context.fill(0, 0, this.width, this.height, 0xCC000000);
 
         int centerX = this.width / 2;
@@ -152,31 +175,84 @@ public class EditWaypointScreen extends Screen {
         int panelX = centerX - PANEL_WIDTH / 2;
         int panelY = centerY - PANEL_HEIGHT / 2;
 
-        // 面板背景
+        // 2. 面板背景
         fillRoundedRect(context, panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT, PANEL_COLOR);
 
-        // 头部
+        // 3. 头部栏 + 标题
         fillRoundedRect(context, panelX, panelY, PANEL_WIDTH, 25, HEADER_COLOR);
         String title = isEditMode ? "编辑路径点" : "添加新路径点";
         drawCenteredText(context, title, centerX, panelY + 7, ACCENT_COLOR);
 
-        // 标签
+        // 4. 标签
         drawText(context, "名称:", panelX + PADDING, panelY + 39, TEXT_COLOR);
         drawText(context, "命令:", panelX + PADDING, panelY + 69, TEXT_COLOR);
         drawText(context, "分组:", panelX + PADDING, panelY + 99, TEXT_COLOR);
         drawText(context, "颜色:", panelX + PADDING, panelY + 136, TEXT_COLOR);
 
-        // 渲染分组选择器
-        renderGroupCycler(context, mouseX, mouseY);
-
-        // 渲染颜色选择器
-        renderColorPicker(context, mouseX, mouseY);
+        // 渲染自动确认勾选框
+        String acLabel = getAutoConfirmLabel();
+        int acColor = getAutoConfirmColor();
+        context.drawTextWithShadow(this.textRenderer, acLabel, autoConfirmX, autoConfirmY + 3, acColor);
 
         // 提示文字
         drawCenteredText(context, "命令示例: /res tp xxx, /home, /warp xxx",
                 centerX, panelY + PANEL_HEIGHT - 55, SUBTLE_COLOR);
 
+        // 6. 渲染所有 widgets（按钮、文本框等）
         super.render(context, mouseX, mouseY, delta);
+
+        // 7. 渲染分组选择器
+        renderGroupCycler(context, mouseX, mouseY);
+
+        // 8. 渲染颜色选择器
+        renderColorPicker(context, mouseX, mouseY);
+
+        // 9. 自动确认悬浮提示（置顶）
+        int acLabelWidth = this.textRenderer.getWidth(acLabel);
+        if (mouseX >= autoConfirmX && mouseX <= autoConfirmX + acLabelWidth &&
+                mouseY >= autoConfirmY && mouseY <= autoConfirmY + AUTO_CONFIRM_HEIGHT) {
+            String tip1 = "自动确认传送";
+            String tip2 = "请务必保证目的地安全";
+            int tipX = autoConfirmX + acLabelWidth + 10;
+            int tipY = autoConfirmY;
+            int tipW = Math.max(this.textRenderer.getWidth(tip1), this.textRenderer.getWidth(tip2)) + 10;
+            context.fill(tipX - 3, tipY - 2, tipX + tipW + 3, tipY + 32, 0xE0000000);
+            context.fill(tipX - 3, tipY - 2, tipX + tipW + 3, tipY - 1, 0xFF7C3AED);
+            context.drawTextWithShadow(this.textRenderer, tip1, tipX + 2, tipY + 1, 0xFFFFCC00);
+            context.drawTextWithShadow(this.textRenderer, tip2, tipX + 2, tipY + 14, 0xFFFF6666);
+        }
+
+        // 10. 命令补全面板（最上层，必须最后渲染）
+        if (!suggestionList.isEmpty() && commandField.isFocused()) {
+            int itemHeight = 16;
+            int sugX = panelX + PADDING + 50;
+            int sugY = panelY + 82;
+            int maxW = 0;
+            for (String s : suggestionList) {
+                maxW = Math.max(maxW, this.textRenderer.getWidth(s));
+            }
+            int sugW = Math.max(100, maxW + 20);
+            int sugH = suggestionList.size() * itemHeight + 4;
+            context.fill(sugX - 2, sugY - 2, sugX + sugW + 2, sugY + sugH + 2, 0xF0000000);
+            context.fill(sugX - 2, sugY - 2, sugX + sugW + 2, sugY - 1, ACCENT_COLOR);
+            for (int i = 0; i < suggestionList.size(); i++) {
+                int itemY = sugY + 2 + i * itemHeight;
+                boolean isSelected = (i == selectedSuggestionIndex);
+                boolean isHovered = mouseX >= sugX && mouseX <= sugX + sugW &&
+                        mouseY >= itemY && mouseY <= itemY + itemHeight;
+                if (isSelected) {
+                    context.fill(sugX, itemY, sugX + sugW, itemY + itemHeight, 0xFF3D3D5C);
+                } else if (isHovered) {
+                    context.fill(sugX, itemY, sugX + sugW, itemY + itemHeight, 0xFF2D2D44);
+                }
+                int textColor = isSelected ? 0xFF4ADE80 : 0xFFCCCCCC;
+                drawText(context, suggestionList.get(i), sugX + 6, itemY + 2, textColor);
+                if (isSelected) {
+                    int tabW = this.textRenderer.getWidth("[Tab]");
+                    drawText(context, "[Tab]", sugX + sugW - tabW - 4, itemY + 2, 0xFF888888);
+                }
+            }
+        }
     }
 
     /**
@@ -249,10 +325,7 @@ public class EditWaypointScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubleClick) {
-        double mouseX = click.x();
-        double mouseY = click.y();
-        int button = click.button();
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
 
         if (button == 0 && !allGroups.isEmpty()) {
             // 左箭头
@@ -286,7 +359,37 @@ public class EditWaypointScreen extends Screen {
             }
         }
 
-        return super.mouseClicked(click, doubleClick);
+        // 左键点击命令补全面板
+        if (button == 0 && !suggestionList.isEmpty() && commandField.isFocused()) {
+            int itemHeight = 16;
+            int centerX = this.width / 2;
+            int panelX = centerX - PANEL_WIDTH / 2;
+            int panelY = (this.height / 2) - PANEL_HEIGHT / 2;
+            int sugX = panelX + PADDING + 50;
+            int sugY = panelY + 52; // 命令输入框上方
+
+            for (int i = 0; i < suggestionList.size(); i++) {
+                int itemY = sugY + 2 + i * itemHeight;
+                if (mouseX >= sugX && mouseX <= sugX + 200 &&
+                        mouseY >= itemY && mouseY <= itemY + itemHeight) {
+                    acceptSuggestion(suggestionList.get(i));
+                    return true;
+                }
+            }
+        }
+
+        // 左键点击自动确认勾选框
+        if (button == 0) {
+            String acLbl = getAutoConfirmLabel();
+            int acW = this.textRenderer.getWidth(acLbl);
+            if (mouseX >= autoConfirmX && mouseX <= autoConfirmX + acW &&
+                    mouseY >= autoConfirmY && mouseY <= autoConfirmY + AUTO_CONFIRM_HEIGHT) {
+                autoConfirmState = autoConfirmState == 0 ? 1 : 0;
+                return true;
+            }
+        }
+
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     /**
@@ -322,6 +425,8 @@ public class EditWaypointScreen extends Screen {
             editingWaypoint.setName(name);
             editingWaypoint.setCommand(command);
             editingWaypoint.setColor(selectedColor);
+            // 保存自动确认设置
+            editingWaypoint.setAutoConfirm(autoConfirmState == 1);
 
             // 处理分组变更
             if (!editingWaypoint.getGroupId().equals(selectedGroup.getId())) {
@@ -339,12 +444,87 @@ public class EditWaypointScreen extends Screen {
             // 添加模式
             Waypoint newWaypoint = new Waypoint(name, command, selectedGroup.getId());
             newWaypoint.setColor(selectedColor);
+            newWaypoint.setAutoConfirm(autoConfirmState == 1);
             selectedGroup.addWaypoint(newWaypoint);
             waypointManager.save();
             ToastWidget.showSuccess("路径点已创建");
         }
 
         this.close();
+    }
+
+    private String getAutoConfirmLabel() {
+        return autoConfirmState == 0 ? "☐ 自动确认" : "☑ 自动确认";
+    }
+
+    private int getAutoConfirmColor() {
+        return autoConfirmState == 0 ? 0xFF888888 : 0xFF4ADE80;
+    }
+
+    /**
+     * 更新命令补全建议列表
+     */
+    private void updateSuggestion(String text) {
+        suggestionList.clear();
+        selectedSuggestionIndex = 0;
+        if (text == null || text.isEmpty()) return;
+
+        String input = text.startsWith("/") ? text.substring(1) : text;
+        if (input.isEmpty()) return;
+
+        String lowerInput = input.toLowerCase();
+        for (String cmd : COMMAND_SUGGESTIONS) {
+            if (cmd.toLowerCase().startsWith(lowerInput) && !cmd.equalsIgnoreCase(input)) {
+                suggestionList.add(cmd);
+            }
+        }
+    }
+
+    /**
+     * 接受选中的补全建议
+     */
+    private void acceptSuggestion(String suggestion) {
+        if (suggestion != null) {
+            String text = commandField.getText();
+            if (text.startsWith("/")) {
+                commandField.setText("/" + suggestion);
+            } else {
+                commandField.setText(suggestion);
+            }
+            suggestionList.clear();
+        }
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (!suggestionList.isEmpty()) {
+            // 上箭头 (GLFW_KEY_UP = 265)
+            if (keyCode == 265) {
+                selectedSuggestionIndex = (selectedSuggestionIndex - 1 + suggestionList.size()) % suggestionList.size();
+                return true;
+            }
+            // 下箭头 (GLFW_KEY_DOWN = 264)
+            if (keyCode == 264) {
+                selectedSuggestionIndex = (selectedSuggestionIndex + 1) % suggestionList.size();
+                return true;
+            }
+            // Tab 键接受选中项 (GLFW_KEY_TAB = 258)
+            if (keyCode == 258) {
+                acceptSuggestion(suggestionList.get(selectedSuggestionIndex));
+                return true;
+            }
+            // Enter 键也接受选中项 (GLFW_KEY_ENTER = 257)
+            if (keyCode == 257) {
+                acceptSuggestion(suggestionList.get(selectedSuggestionIndex));
+                return true;
+            }
+            // Esc 键关闭补全面板 (GLFW_KEY_ESCAPE = 256)
+            if (keyCode == 256) {
+                suggestionList.clear();
+                return true;
+            }
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override

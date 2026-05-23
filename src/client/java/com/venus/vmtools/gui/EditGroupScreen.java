@@ -5,7 +5,6 @@ import com.venus.vmtools.feature.waypoint.WaypointColor;
 import com.venus.vmtools.feature.waypoint.WaypointGroup;
 import com.venus.vmtools.feature.waypoint.WaypointManager;
 import com.venus.vmtools.gui.component.ToastWidget;
-import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -156,10 +155,7 @@ public class EditGroupScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubleClick) {
-        double mouseX = click.x();
-        double mouseY = click.y();
-        int button = click.button();
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
 
         // 左键点击颜色选择器
         if (button == 0) {
@@ -176,7 +172,7 @@ public class EditGroupScreen extends Screen {
             }
         }
 
-        return super.mouseClicked(click, doubleClick);
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     /**

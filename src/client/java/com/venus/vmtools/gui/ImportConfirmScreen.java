@@ -5,7 +5,6 @@ import com.venus.vmtools.feature.waypoint.WaypointGroup;
 import com.venus.vmtools.feature.waypoint.WaypointIO;
 import com.venus.vmtools.feature.waypoint.WaypointManager;
 import com.venus.vmtools.gui.component.ToastWidget;
-import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -160,8 +159,8 @@ public class ImportConfirmScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubleClick) {
-        return super.mouseClicked(click, doubleClick);
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     // 绘制工具

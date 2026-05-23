@@ -16,6 +16,7 @@ public class Waypoint {
     private LocalDateTime createdAt;
     private LocalDateTime lastUsedAt;
     private int useCount;
+    private Boolean autoConfirm; // null=使用全局设置, true=强制开启, false=强制关闭
 
     /**
      * 创建新的路径点
@@ -29,6 +30,8 @@ public class Waypoint {
         this.createdAt = LocalDateTime.now();
         this.lastUsedAt = null;
         this.useCount = 0;
+        this.autoConfirm = false;
+        this.autoConfirm = null;
     }
 
     /**
@@ -97,5 +100,21 @@ public class Waypoint {
 
     public int getUseCount() {
         return useCount;
+    }
+
+    public Boolean getAutoConfirm() {
+        return autoConfirm;
+    }
+
+    public void setAutoConfirm(Boolean autoConfirm) {
+        this.autoConfirm = autoConfirm;
+    }
+
+    /**
+     * 是否启用自动确认传送（考虑全局设置）
+     */
+    public boolean shouldAutoConfirm(boolean globalSetting) {
+        if (autoConfirm == null) return globalSetting;
+        return autoConfirm;
     }
 }
