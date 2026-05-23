@@ -1,6 +1,7 @@
 package com.venus.vmtools.gui.component;
 
 import com.venus.vmtools.feature.waypoint.WaypointColor;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;

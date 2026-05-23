@@ -26,7 +26,6 @@ public class KeybindManager {
      * 注册所有快捷键
      */
     public void register() {
-        // 创建快捷键分类
         Category vmtoolsCategory = Category.create(Identifier.of("vmtools", "main"));
 
         // 注册路径点管理快捷键

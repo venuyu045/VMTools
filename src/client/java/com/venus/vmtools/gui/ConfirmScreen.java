@@ -116,6 +116,9 @@ public class ConfirmScreen extends Screen {
 
     @Override
     public boolean mouseClicked(Click click, boolean doubleClick) {
+        double mouseX = click.x();
+        double mouseY = click.y();
+        int button = click.button();
         return super.mouseClicked(click, doubleClick);
     }
 

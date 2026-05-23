@@ -1,6 +1,7 @@
 package com.venus.vmtools.gui.component;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.text.Text;
 
