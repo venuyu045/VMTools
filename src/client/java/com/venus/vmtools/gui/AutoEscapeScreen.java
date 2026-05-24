@@ -186,7 +186,7 @@ public class AutoEscapeScreen extends Screen {
                 });
                 this.addRenderableWidget(voidThresholdField);
                 fy += LINE_H;
-                voidCommandField = makeField(fx, fy, fw, vc.getCommand(), "/ehome", 50, text -> AutoEscapeManager.getInstance().setCommand(text));
+                voidCommandField = makeField(fx, fy, fw, vc.getCommand(), "/ehomes home", 50, text -> AutoEscapeManager.getInstance().setCommand(text));
                 this.addRenderableWidget(voidCommandField);
             } else if (win.id.equals("health_monitor")) {
                 healthThresholdField = makeField(fx, fy, fw, String.valueOf(hc.getThreshold()), "10.0", 10, text -> {

@@ -29,7 +29,7 @@ public class AutoEscapeConfig {
     private double threshold = -70.0;
 
     // 触发后执行的命令
-    private String command = "/ehome";
+    private String command = "/ehomes home";
 
     // 是否自动确认（发送命令后自动执行确认命令）
     private boolean autoConfirm = true;
