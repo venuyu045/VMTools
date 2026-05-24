@@ -1,6 +1,7 @@
 package com.venus.vmtools;
 
 import com.venus.vmtools.config.ModConfig;
+import com.venus.vmtools.feature.escape.AutoEscapeManager;
 import com.venus.vmtools.feature.waypoint.WaypointManager;
 import com.venus.vmtools.keybind.KeybindManager;
 import net.fabricmc.api.ClientModInitializer;
@@ -22,6 +23,7 @@ public class VMToolsClient implements ClientModInitializer {
     private ModConfig config;
     private WaypointManager waypointManager;
     private KeybindManager keybindManager;
+    private AutoEscapeManager autoEscapeManager;
 
     @Override
     public void onInitializeClient() {
@@ -37,6 +39,10 @@ public class VMToolsClient implements ClientModInitializer {
         // 初始化快捷键管理器
         keybindManager = new KeybindManager();
         keybindManager.register();
+
+        // 初始化自动逃脱管理器
+        autoEscapeManager = AutoEscapeManager.getInstance();
+        autoEscapeManager.register();
 
         // 注册关闭事件，保存数据
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
@@ -75,6 +81,13 @@ public class VMToolsClient implements ClientModInitializer {
      */
     public KeybindManager getKeybindManager() {
         return keybindManager;
+    }
+
+    /**
+     * 获取自动逃脱管理器
+     */
+    public AutoEscapeManager getAutoEscapeManager() {
+        return autoEscapeManager;
     }
 
     /**
