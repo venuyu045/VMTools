@@ -1,30 +1,32 @@
 package com.venus.vmtools.gui;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.venus.vmtools.feature.escape.AutoEscapeConfig;
 import com.venus.vmtools.feature.escape.AutoEscapeManager;
+import com.venus.vmtools.feature.escape.HealthMonitorConfig;
+import com.venus.vmtools.feature.escape.HealthMonitorManager;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 自动逃逸设置界面
- * 监控玩家Y坐标，当低于阈值时触发逃逸命令
+ * 逃逸小工具 - 多工具窗口式布局
+ * 工具：虚空逃逸、血量监控
  */
 public class AutoEscapeScreen extends Screen {
 
-    // 窗口尺寸常量
-    private static final int PANEL_WIDTH = 300;
-    private static final int PANEL_HEIGHT = 380;
-    private static final int TAB_BAR_HEIGHT = 25;
-    private static final int PADDING = 12;
-
-    // 颜色定义
+    // 颜色
+    private static final int BG_COLOR = 0xCC000000;
     private static final int PANEL_COLOR = 0xFF2D2D44;
     private static final int HEADER_COLOR = 0xFF3D3D5C;
     private static final int TEXT_COLOR = 0xFFE0E0E0;
@@ -32,396 +34,530 @@ public class AutoEscapeScreen extends Screen {
     private static final int SUBTLE_COLOR = 0xFF888888;
     private static final int SUCCESS_COLOR = 0xFF4ADE80;
     private static final int DANGER_COLOR = 0xFFF87171;
+    private static final int HOVER_COLOR = 0xFF4A4A6A;
 
-    // 管理器
-    private AutoEscapeManager autoEscapeManager;
-    private AutoEscapeConfig config;
+    // Tab 栏
+    private static final int TAB_H = 22;
+    private static final int TAB_W = 110;
 
-    // 输入框
-    private TextFieldWidget thresholdField;
-    private TextFieldWidget commandField;
-    private TextFieldWidget confirmCommandField;
-    private TextFieldWidget confirmDelayField;
+    // 窗口通用
+    private static final int TITLE_BAR_H = 20;
+    private static final int MIN_W = 180;
+    private static final int MAX_W = 400;
+    private static final int PAD = 8;
+    private static final int LINE_H = 22;
+    private static final int RESIZE_ZONE = 6;
+    private static final int DRAG_THRESHOLD = 5;
 
-    // 勾选框位置
-    private int enableCheckboxX, enableCheckboxY;
-    private int autoConfirmCheckboxX, autoConfirmCheckboxY;
-    private static final int CHECKBOX_HEIGHT = 16;
+    // 工具窗口状态
+    private final List<ToolWindow> windows = new ArrayList<>();
 
-    // 日志区域
-    private int logScrollOffset = 0;
-    private int maxLogScroll = 0;
-    private static final int LOG_VISIBLE_ENTRIES = 8;
-    private static final int LOG_ENTRY_HEIGHT = 14;
+    // 拖拽状态
+    private int dragWinIdx = -1;
+    private int dragOffX, dragOffY;
+    private double dragStartX, dragStartY;
+    private int resizeWinIdx = -1;
+    private boolean resizeRight = false;
+    private boolean resizeBottom = false;
+    private int resizeStartW, resizeStartH, resizeStartMX, resizeStartMY;
 
-    /**
-     * 构造函数
-     */
+    // 输入框缓存
+    private TextFieldWidget voidThresholdField, voidCommandField;
+    private TextFieldWidget healthThresholdField, healthCommandField;
+
+    // 日志滚动
+    private int voidLogScroll = 0;
+    private int healthLogScroll = 0;
+    private static final int LOG_VISIBLE = 4;
+    private static final int LOG_LINE_H = 14;
+
+    // 工具窗口数据类
+    private static class ToolWindow {
+        String id;
+        String title;
+        int x, y, w;
+        int maxHeight;
+        boolean expanded;
+        boolean enabled;
+        String statusText;
+        int statusColor;
+
+        ToolWindow(String id, String title, int x, int y, int w, int maxH, boolean expanded) {
+            this.id = id;
+            this.title = title;
+            this.x = x; this.y = y; this.w = w;
+            this.maxHeight = maxH;
+            this.expanded = expanded;
+        }
+    }
+
+    // 窗口状态持久化
+    private static class ToolWindowState {
+        int x = -1, y = -1;
+        int w = 300;
+        int maxHeight = 260;
+        boolean expanded = true;
+    }
+
+    private static class AllToolStates {
+        ToolWindowState voidEscape = new ToolWindowState();
+        ToolWindowState healthMonitor = new ToolWindowState();
+    }
+
+    private static final Path STATE_PATH = FabricLoader.getInstance().getConfigDir()
+            .resolve("vmtools").resolve("tool_windows.json");
+    private AllToolStates toolStates;
+
     public AutoEscapeScreen() {
-        super(Text.of("VMTools - 自动逃逸"));
-        this.autoEscapeManager = AutoEscapeManager.getInstance();
-        this.config = autoEscapeManager.getConfig();
+        super(Text.of("VMTools - 逃逸小工具"));
+        loadToolStates();
+    }
+
+    private void loadToolStates() {
+        try {
+            if (Files.exists(STATE_PATH)) {
+                String json = Files.readString(STATE_PATH);
+                toolStates = new Gson().fromJson(json, AllToolStates.class);
+            }
+        } catch (Exception ignored) {}
+        if (toolStates == null) toolStates = new AllToolStates();
+    }
+
+    private void saveToolStates() {
+        // 从窗口列表同步状态
+        for (ToolWindow win : windows) {
+            ToolWindowState ws = getToolState(win.id);
+            ws.x = win.x; ws.y = win.y; ws.w = win.w;
+            ws.maxHeight = win.maxHeight;
+            ws.expanded = win.expanded;
+        }
+        try {
+            Files.createDirectories(STATE_PATH.getParent());
+            Files.writeString(STATE_PATH, new GsonBuilder().setPrettyPrinting().create().toJson(toolStates));
+        } catch (Exception ignored) {}
+    }
+
+    private ToolWindowState getToolState(String id) {
+        return switch (id) {
+            case "void_escape" -> toolStates.voidEscape;
+            case "health_monitor" -> toolStates.healthMonitor;
+            default -> new ToolWindowState();
+        };
     }
 
     @Override
     protected void init() {
-        int centerX = this.width / 2;
-        int centerY = this.height / 2;
-        int panelX = centerX - PANEL_WIDTH / 2;
-        int panelY = centerY - PANEL_HEIGHT / 2;
+        windows.clear();
 
-        // 阈值输入框
-        thresholdField = new TextFieldWidget(this.textRenderer,
-                panelX + PADDING + 70, panelY + TAB_BAR_HEIGHT + 85,
-                PANEL_WIDTH - PADDING * 2 - 70, 18,
-                Text.of("高度阈值"));
-        thresholdField.setPlaceholder(Text.literal("-70.0").styled(s -> s.withColor(SUBTLE_COLOR)));
-        thresholdField.setText(String.valueOf(config.getThreshold()));
-        thresholdField.setMaxLength(10);
-        thresholdField.setChangedListener(text -> {
-            try {
-                double value = Double.parseDouble(text);
-                autoEscapeManager.setThreshold(value);
-            } catch (NumberFormatException ignored) {
-                // 忽略无效输入
+        // 虚空逃逸窗口
+        ToolWindowState vs = toolStates.voidEscape;
+        ToolWindowState hs = toolStates.healthMonitor;
+
+        windows.add(new ToolWindow("void_escape", "虚空逃逸",
+                vs.x >= 0 ? vs.x : this.width / 2 - 170,
+                vs.y >= 0 ? vs.y : TAB_H + 10,
+                vs.w, vs.maxHeight, vs.expanded));
+
+        // 血量监控窗口
+        windows.add(new ToolWindow("health_monitor", "血量监控",
+                hs.x >= 0 ? hs.x : this.width / 2 + 10,
+                hs.y >= 0 ? hs.y : TAB_H + 10,
+                hs.w, hs.maxHeight, hs.expanded));
+
+        rebuildFields();
+    }
+
+    private void rebuildFields() {
+        if (voidThresholdField != null) this.remove(voidThresholdField);
+        if (voidCommandField != null) this.remove(voidCommandField);
+        if (healthThresholdField != null) this.remove(healthThresholdField);
+        if (healthCommandField != null) this.remove(healthCommandField);
+        voidThresholdField = null; voidCommandField = null;
+        healthThresholdField = null; healthCommandField = null;
+
+        AutoEscapeConfig vc = AutoEscapeManager.getInstance().getConfig();
+        HealthMonitorConfig hc = HealthMonitorManager.getInstance().getConfig();
+
+        for (ToolWindow win : windows) {
+            if (!win.expanded) continue;
+            int fy = win.y + TITLE_BAR_H + PAD + LINE_H; // 跳过启用开关
+            int fx = win.x + PAD + 70;
+            int fw = win.w - PAD * 2 - 75;
+
+            if (win.id.equals("void_escape")) {
+                voidThresholdField = makeField(fx, fy, fw, String.valueOf(vc.getThreshold()), "-70.0", 10, text -> {
+                    try { AutoEscapeManager.getInstance().setThreshold(Double.parseDouble(text)); } catch (NumberFormatException ignored) {}
+                });
+                this.addDrawableChild(voidThresholdField);
+                fy += LINE_H;
+                voidCommandField = makeField(fx, fy, fw, vc.getCommand(), "/ehome", 50, text -> AutoEscapeManager.getInstance().setCommand(text));
+                this.addDrawableChild(voidCommandField);
+            } else if (win.id.equals("health_monitor")) {
+                healthThresholdField = makeField(fx, fy, fw, String.valueOf(hc.getThreshold()), "10.0", 10, text -> {
+                    try { HealthMonitorManager.getInstance().setThreshold(Double.parseDouble(text)); } catch (NumberFormatException ignored) {}
+                });
+                this.addDrawableChild(healthThresholdField);
+                fy += LINE_H;
+                healthCommandField = makeField(fx, fy, fw, hc.getCommand(), "/home", 50, text -> HealthMonitorManager.getInstance().setCommand(text));
+                this.addDrawableChild(healthCommandField);
             }
-        });
-        this.addDrawableChild(thresholdField);
+        }
+    }
 
-        // 执行命令输入框
-        commandField = new TextFieldWidget(this.textRenderer,
-                panelX + PADDING + 70, panelY + TAB_BAR_HEIGHT + 115,
-                PANEL_WIDTH - PADDING * 2 - 70, 18,
-                Text.of("执行命令"));
-        commandField.setPlaceholder(Text.literal("/ehome").styled(s -> s.withColor(SUBTLE_COLOR)));
-        commandField.setText(config.getCommand());
-        commandField.setMaxLength(50);
-        commandField.setChangedListener(text -> autoEscapeManager.setCommand(text));
-        this.addDrawableChild(commandField);
+    private TextFieldWidget makeField(int x, int y, int w, String value, String placeholder, int maxLen, java.util.function.Consumer<String> listener) {
+        TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, w, 16, Text.of(""));
+        field.setPlaceholder(Text.literal(placeholder).styled(s -> s.withColor(SUBTLE_COLOR)));
+        field.setText(value);
+        field.setMaxLength(maxLen);
+        field.setChangedListener(listener);
+        return field;
+    }
 
-        // 确认命令输入框
-        confirmCommandField = new TextFieldWidget(this.textRenderer,
-                panelX + PADDING + 70, panelY + TAB_BAR_HEIGHT + 175,
-                PANEL_WIDTH - PADDING * 2 - 70, 18,
-                Text.of("确认命令"));
-        confirmCommandField.setPlaceholder(Text.literal("res tpconfirm").styled(s -> s.withColor(SUBTLE_COLOR)));
-        confirmCommandField.setText(config.getConfirmCommand());
-        confirmCommandField.setMaxLength(50);
-        confirmCommandField.setChangedListener(text -> autoEscapeManager.setConfirmCommand(text));
-        this.addDrawableChild(confirmCommandField);
-
-        // 确认延迟输入框
-        confirmDelayField = new TextFieldWidget(this.textRenderer,
-                panelX + PADDING + 70, panelY + TAB_BAR_HEIGHT + 205,
-                PANEL_WIDTH - PADDING * 2 - 100, 18,
-                Text.of("确认延迟"));
-        confirmDelayField.setPlaceholder(Text.literal("200").styled(s -> s.withColor(SUBTLE_COLOR)));
-        confirmDelayField.setText(String.valueOf(config.getConfirmDelay()));
-        confirmDelayField.setMaxLength(5);
-        confirmDelayField.setChangedListener(text -> {
-            try {
-                int value = Integer.parseInt(text);
-                autoEscapeManager.setConfirmDelay(value);
-            } catch (NumberFormatException ignored) {
-                // 忽略无效输入
-            }
-        });
-        this.addDrawableChild(confirmDelayField);
-
-        // 勾选框位置
-        enableCheckboxX = panelX + PADDING;
-        enableCheckboxY = panelY + TAB_BAR_HEIGHT + 35;
-        autoConfirmCheckboxX = panelX + PADDING;
-        autoConfirmCheckboxY = panelY + TAB_BAR_HEIGHT + 145;
-
-        // 关闭按钮
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("关闭"),
-                button -> this.close()
-        ).dimensions(centerX - 30, panelY + PANEL_HEIGHT - 35, 60, 20).build());
+    private int getContentHeight(ToolWindow win) {
+        if (!win.expanded) return 0;
+        return PAD + LINE_H + LINE_H + LINE_H + LINE_H + LINE_H + 12 + LINE_H + LOG_VISIBLE * LOG_LINE_H + 4 + PAD;
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // 1. 半透明背景填充
-        context.fill(0, 0, this.width, this.height, 0xCC000000);
+        context.fill(0, 0, this.width, this.height, BG_COLOR);
+        renderTabBar(context, mouseX, mouseY);
 
-        int centerX = this.width / 2;
-        int centerY = this.height / 2;
-        int panelX = centerX - PANEL_WIDTH / 2;
-        int panelY = centerY - PANEL_HEIGHT / 2;
+        MinecraftClient mc = MinecraftClient.getInstance();
 
-        // 2. 面板背景
-        fillRoundedRect(context, panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT, PANEL_COLOR);
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            ToolWindow win = windows.get(i);
+            int contentH = getContentHeight(win);
+            int totalH = TITLE_BAR_H + contentH;
 
-        // 3. 头部栏
-        fillRoundedRect(context, panelX, panelY, PANEL_WIDTH, TAB_BAR_HEIGHT, HEADER_COLOR);
+            // 标题栏
+            boolean titleHover = mouseX >= win.x && mouseX <= win.x + win.w &&
+                    mouseY >= win.y && mouseY <= win.y + TITLE_BAR_H;
+            context.fill(win.x, win.y, win.x + win.w, win.y + TITLE_BAR_H, titleHover ? HOVER_COLOR : HEADER_COLOR);
 
-        // 4. 渲染所有 widgets（输入框、按钮等）
-        super.render(context, mouseX, mouseY, delta);
+            // 标题文字
+            AutoEscapeConfig vc = AutoEscapeManager.getInstance().getConfig();
+            HealthMonitorConfig hc = HealthMonitorManager.getInstance().getConfig();
+            boolean isEnabled = win.id.equals("void_escape") ? vc.isEnabled() : hc.isEnabled();
+            String icon = win.expanded ? "▼" : "▶";
+            drawText(context, icon + " " + win.title, win.x + PAD, win.y + 4, TEXT_COLOR);
+            String status = isEnabled ? "ON" : "OFF";
+            int sw = this.textRenderer.getWidth(status);
+            drawText(context, status, win.x + win.w - PAD - sw - RESIZE_ZONE, win.y + 4, isEnabled ? SUCCESS_COLOR : SUBTLE_COLOR);
 
-        // 5. 渲染标签栏（在widgets之上）
-        renderTabBar(context, panelX, panelY, mouseX, mouseY);
+            // 右边框高亮
+            boolean rightH = mouseX >= win.x + win.w - RESIZE_ZONE && mouseX <= win.x + win.w &&
+                    mouseY >= win.y && mouseY <= win.y + totalH;
+            if (rightH || (resizeWinIdx == i && resizeRight))
+                context.fill(win.x + win.w - 1, win.y, win.x + win.w, win.y + totalH, 0x887C3AED);
 
-        // 6. 渲染启用勾选框
-        renderEnableCheckbox(context, mouseX, mouseY);
+            if (win.expanded) {
+                context.fill(win.x, win.y + TITLE_BAR_H, win.x + win.w, win.y + totalH, PANEL_COLOR);
+                context.enableScissor(win.x, win.y + TITLE_BAR_H, win.x + win.w, win.y + totalH);
+                super.render(context, mouseX, mouseY, delta);
 
-        // 7. 渲染实时状态
-        renderRealTimeStatus(context, panelX, panelY);
+                int y = win.y + TITLE_BAR_H + PAD;
+                int rx = win.x + PAD;
+                int rw = win.w - PAD * 2;
 
-        // 8. 渲染设置标签
-        renderSettingsLabels(context, panelX, panelY);
+                if (win.id.equals("void_escape")) {
+                    renderVoidEscapeContent(context, mc, rx, y, rw);
+                } else {
+                    renderHealthMonitorContent(context, mc, rx, y, rw);
+                }
 
-        // 9. 渲染自动确认勾选框
-        renderAutoConfirmCheckbox(context, mouseX, mouseY);
+                context.disableScissor();
 
-        // 10. 渲染触发日志
-        renderTriggerLog(context, panelX, panelY);
-    }
-
-    /**
-     * 渲染标签栏
-     */
-    private void renderTabBar(DrawContext context, int panelX, int panelY, int mouseX, int mouseY) {
-        int tabWidth = PANEL_WIDTH / 2;
-        int tabY = panelY + 2;
-
-        // 路径点管理标签（左侧，非活动）
-        boolean leftTabHovered = mouseX >= panelX && mouseX <= panelX + tabWidth &&
-                mouseY >= tabY && mouseY <= tabY + TAB_BAR_HEIGHT - 4;
-        int leftTabBg = leftTabHovered ? 0xFF4A4A6A : HEADER_COLOR;
-        fillRoundedRect(context, panelX, tabY, tabWidth, TAB_BAR_HEIGHT - 4, leftTabBg);
-        drawCenteredText(context, "◄ 路径点管理", panelX + tabWidth / 2, tabY + 6, SUBTLE_COLOR);
-
-        // 自动逃逸标签（右侧，活动）
-        boolean rightTabHovered = mouseX >= panelX + tabWidth && mouseX <= panelX + PANEL_WIDTH &&
-                mouseY >= tabY && mouseY <= tabY + TAB_BAR_HEIGHT - 4;
-        int rightTabBg = rightTabHovered ? 0xFF8B4AF0 : ACCENT_COLOR;
-        fillRoundedRect(context, panelX + tabWidth, tabY, tabWidth, TAB_BAR_HEIGHT - 4, rightTabBg);
-        drawCenteredText(context, "自动逃逸 ►", panelX + tabWidth + tabWidth / 2, tabY + 6, 0xFFFFFFFF);
-    }
-
-    /**
-     * 渲染启用勾选框
-     */
-    private void renderEnableCheckbox(DrawContext context, int mouseX, int mouseY) {
-        boolean isEnabled = config.isEnabled();
-        String label = isEnabled ? "☑ 启用自动逃险" : "☐ 启用自动逃险";
-        int color = isEnabled ? SUCCESS_COLOR : SUBTLE_COLOR;
-
-        // 检查悬浮状态
-        int labelWidth = this.textRenderer.getWidth(label);
-        boolean isHovered = mouseX >= enableCheckboxX && mouseX <= enableCheckboxX + labelWidth &&
-                mouseY >= enableCheckboxY && mouseY <= enableCheckboxY + CHECKBOX_HEIGHT;
-
-        if (isHovered) {
-            context.fill(enableCheckboxX - 2, enableCheckboxY - 2, enableCheckboxX + labelWidth + 2, enableCheckboxY + CHECKBOX_HEIGHT + 2, 0x33FFFFFF);
-        }
-
-        drawText(context, label, enableCheckboxX, enableCheckboxY + 3, color);
-    }
-
-    /**
-     * 渲染实时状态
-     */
-    private void renderRealTimeStatus(DrawContext context, int panelX, int panelY) {
-        int statusY = panelY + TAB_BAR_HEIGHT + 55;
-
-        // 分隔线
-        context.fill(panelX + PADDING, statusY - 5, panelX + PANEL_WIDTH - PADDING, statusY - 3, SUBTLE_COLOR);
-        drawText(context, "─── 实时状态 ───", panelX + PADDING, statusY - 2, SUBTLE_COLOR);
-
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player != null) {
-            double playerX = client.player.getX();
-            double playerY = client.player.getY();
-            double playerZ = client.player.getZ();
-
-            // 位置信息
-            String positionText = String.format("当前位置: X: %.1f  Y: %.1f  Z: %.1f", playerX, playerY, playerZ);
-            drawText(context, positionText, panelX + PADDING, statusY + 15, TEXT_COLOR);
-
-            // 状态信息
-            boolean isTriggered = playerY < config.getThreshold();
-            String statusText = isTriggered ? "⚠️ 触发中" : "安全 ✅";
-            int statusColor = isTriggered ? DANGER_COLOR : SUCCESS_COLOR;
-            drawText(context, "状态: " + statusText, panelX + PADDING, statusY + 32, statusColor);
-        } else {
-            drawText(context, "当前位置: 未连接到服务器", panelX + PADDING, statusY + 15, SUBTLE_COLOR);
-            drawText(context, "状态: 未知", panelX + PADDING, statusY + 32, SUBTLE_COLOR);
-        }
-    }
-
-    /**
-     * 渲染设置标签
-     */
-    private void renderSettingsLabels(DrawContext context, int panelX, int panelY) {
-        int settingsY = panelY + TAB_BAR_HEIGHT + 80;
-
-        // 分隔线
-        context.fill(panelX + PADDING, settingsY - 5, panelX + PANEL_WIDTH - PADDING, settingsY - 3, SUBTLE_COLOR);
-        drawText(context, "─── 设置 ───", panelX + PADDING, settingsY - 2, SUBTLE_COLOR);
-
-        // 阈值标签
-        drawText(context, "高度阈值:", panelX + PADDING, settingsY + 30, TEXT_COLOR);
-
-        // 命令标签
-        drawText(context, "执行命令:", panelX + PADDING, settingsY + 60, TEXT_COLOR);
-
-        // 确认命令标签
-        drawText(context, "确认命令:", panelX + PADDING, settingsY + 120, TEXT_COLOR);
-
-        // 确认延迟标签
-        drawText(context, "确认延迟:", panelX + PADDING, settingsY + 150, TEXT_COLOR);
-
-        // 毫秒单位
-        drawText(context, "ms", panelX + PADDING + 175, settingsY + 153, SUBTLE_COLOR);
-    }
-
-    /**
-     * 渲染自动确认勾选框
-     */
-    private void renderAutoConfirmCheckbox(DrawContext context, int mouseX, int mouseY) {
-        boolean isAutoConfirm = config.isAutoConfirm();
-        String label = isAutoConfirm ? "☑ 自动确认" : "☐ 自动确认";
-        int color = isAutoConfirm ? SUCCESS_COLOR : SUBTLE_COLOR;
-
-        // 检查悬浮状态
-        int labelWidth = this.textRenderer.getWidth(label);
-        boolean isHovered = mouseX >= autoConfirmCheckboxX && mouseX <= autoConfirmCheckboxX + labelWidth &&
-                mouseY >= autoConfirmCheckboxY && mouseY <= autoConfirmCheckboxY + CHECKBOX_HEIGHT;
-
-        if (isHovered) {
-            context.fill(autoConfirmCheckboxX - 2, autoConfirmCheckboxY - 2, autoConfirmCheckboxX + labelWidth + 2, autoConfirmCheckboxY + CHECKBOX_HEIGHT + 2, 0x33FFFFFF);
-        }
-
-        drawText(context, label, autoConfirmCheckboxX, autoConfirmCheckboxY + 3, color);
-    }
-
-    /**
-     * 渲染触发日志
-     */
-    private void renderTriggerLog(DrawContext context, int panelX, int panelY) {
-        int logY = panelY + TAB_BAR_HEIGHT + 230;
-
-        // 分隔线
-        context.fill(panelX + PADDING, logY - 5, panelX + PANEL_WIDTH - PADDING, logY - 3, SUBTLE_COLOR);
-        drawText(context, "─── 触发日志 ───", panelX + PADDING, logY - 2, SUBTLE_COLOR);
-
-        List<String> logEntries = autoEscapeManager.getLogEntries();
-
-        if (logEntries.isEmpty()) {
-            drawText(context, "暂无触发记录", panelX + PADDING, logY + 15, SUBTLE_COLOR);
-        } else {
-            // 计算最大滚动
-            maxLogScroll = Math.max(0, logEntries.size() - LOG_VISIBLE_ENTRIES);
-
-            // 显示最后的条目（考虑滚动）
-            int startIndex = Math.max(0, logEntries.size() - LOG_VISIBLE_ENTRIES - logScrollOffset);
-            int endIndex = Math.min(logEntries.size(), startIndex + LOG_VISIBLE_ENTRIES);
-
-            int currentY = logY + 15;
-            for (int i = startIndex; i < endIndex; i++) {
-                String entry = logEntries.get(i);
-                drawText(context, entry, panelX + PADDING, currentY, TEXT_COLOR);
-                currentY += LOG_ENTRY_HEIGHT;
-            }
-
-            // 滚动指示器（如果有更多条目）
-            if (logEntries.size() > LOG_VISIBLE_ENTRIES) {
-                String scrollInfo = String.format("显示 %d-%d / %d", startIndex + 1, endIndex, logEntries.size());
-                int scrollInfoWidth = this.textRenderer.getWidth(scrollInfo);
-                drawText(context, scrollInfo, panelX + PANEL_WIDTH - PADDING - scrollInfoWidth, logY - 2, SUBTLE_COLOR);
+                // 底部边框高亮
+                int bottomY = win.y + totalH;
+                boolean bottomH = mouseX >= win.x && mouseX <= win.x + win.w &&
+                        mouseY >= bottomY - RESIZE_ZONE && mouseY <= bottomY;
+                if (bottomH || (resizeWinIdx == i && resizeBottom))
+                    context.fill(win.x + 2, bottomY - 1, win.x + win.w - 2, bottomY, 0x887C3AED);
             }
         }
+    }
+
+    private void renderVoidEscapeContent(DrawContext context, MinecraftClient mc, int rx, int y, int rw) {
+        AutoEscapeConfig vc = AutoEscapeManager.getInstance().getConfig();
+
+        // 启用开关
+        drawText(context, vc.isEnabled() ? "☑ 启用" : "☐ 启用", rx, y + 3, vc.isEnabled() ? SUCCESS_COLOR : SUBTLE_COLOR);
+        y += LINE_H;
+        drawText(context, "高度阈值:", rx, y + 2, TEXT_COLOR);
+        y += LINE_H;
+        drawText(context, "执行命令:", rx, y + 2, TEXT_COLOR);
+        y += LINE_H;
+
+        // 自动确认
+        boolean ac = vc.isAutoConfirm();
+        drawText(context, ac ? "☑ 自动确认" : "☐ 自动确认", rx, y + 3, ac ? SUCCESS_COLOR : SUBTLE_COLOR);
+        y += LINE_H;
+
+        // 状态
+        if (mc.player != null) {
+            double py = mc.player.getY();
+            drawText(context, "位置: Y:" + String.format("%.1f", py), rx, y + 3, TEXT_COLOR);
+            boolean triggered = py < vc.getThreshold();
+            String st = triggered ? "⚠ 触发中" : "✓ 安全";
+            int stw = this.textRenderer.getWidth(st);
+            drawText(context, st, rx + rw - stw, y + 3, triggered ? DANGER_COLOR : SUCCESS_COLOR);
+        } else {
+            drawText(context, "未连接", rx, y + 3, SUBTLE_COLOR);
+        }
+        y += LINE_H + 12;
+
+        // 日志
+        context.fill(rx, y, rx + rw, y + 1, 0xFF3D3D5C);
+        drawText(context, "触发日志", rx, y + 3, SUBTLE_COLOR);
+        y += LINE_H;
+        renderLog(context, AutoEscapeManager.getInstance().getLogEntries(), voidLogScroll, rx, y, rw);
+    }
+
+    private void renderHealthMonitorContent(DrawContext context, MinecraftClient mc, int rx, int y, int rw) {
+        HealthMonitorConfig hc = HealthMonitorManager.getInstance().getConfig();
+
+        drawText(context, hc.isEnabled() ? "☑ 启用" : "☐ 启用", rx, y + 3, hc.isEnabled() ? SUCCESS_COLOR : SUBTLE_COLOR);
+        y += LINE_H;
+        drawText(context, "血量阈值:", rx, y + 2, TEXT_COLOR);
+        y += LINE_H;
+        drawText(context, "执行命令:", rx, y + 2, TEXT_COLOR);
+        y += LINE_H;
+
+        boolean ac = hc.isAutoConfirm();
+        drawText(context, ac ? "☑ 自动确认" : "☐ 自动确认", rx, y + 3, ac ? SUCCESS_COLOR : SUBTLE_COLOR);
+        y += LINE_H;
+
+        if (mc.player != null) {
+            float hp = mc.player.getHealth();
+            drawText(context, "血量: " + String.format("%.1f", hp) + "/20", rx, y + 3, TEXT_COLOR);
+            boolean triggered = hp < hc.getThreshold();
+            String st = triggered ? "⚠ 血量过低" : "✓ 正常";
+            int stw = this.textRenderer.getWidth(st);
+            drawText(context, st, rx + rw - stw, y + 3, triggered ? DANGER_COLOR : SUCCESS_COLOR);
+        } else {
+            drawText(context, "未连接", rx, y + 3, SUBTLE_COLOR);
+        }
+        y += LINE_H + 12;
+
+        context.fill(rx, y, rx + rw, y + 1, 0xFF3D3D5C);
+        drawText(context, "触发日志", rx, y + 3, SUBTLE_COLOR);
+        y += LINE_H;
+        renderLog(context, HealthMonitorManager.getInstance().getLogEntries(), healthLogScroll, rx, y, rw);
+    }
+
+    private void renderLog(DrawContext context, List<String> logs, int scroll, int x, int y, int w) {
+        if (logs.isEmpty()) {
+            drawText(context, "暂无记录", x, y + 2, SUBTLE_COLOR);
+            return;
+        }
+        int start = Math.max(0, logs.size() - LOG_VISIBLE - scroll);
+        int end = Math.min(logs.size(), start + LOG_VISIBLE);
+        int ly = y + 2;
+        for (int i = start; i < end; i++) {
+            drawText(context, logs.get(i), x, ly, TEXT_COLOR);
+            ly += LOG_LINE_H;
+        }
+        if (logs.size() > LOG_VISIBLE) {
+            String info = (start + 1) + "-" + end + "/" + logs.size();
+            int iw = this.textRenderer.getWidth(info);
+            drawText(context, info, x + w - iw, y + 2, SUBTLE_COLOR);
+        }
+    }
+
+    private void renderTabBar(DrawContext context, int mouseX, int mouseY) {
+        int gap = 4;
+        int startX = this.width / 2 - (TAB_W * 2 + gap) / 2;
+
+        boolean leftH = mouseX >= startX && mouseX <= startX + TAB_W && mouseY >= 0 && mouseY <= TAB_H;
+        context.fill(startX, 0, startX + TAB_W, TAB_H, leftH ? HOVER_COLOR : HEADER_COLOR);
+        drawCentered(context, "◄ 路径点管理", startX + TAB_W / 2, 5, SUBTLE_COLOR);
+
+        int rx = startX + TAB_W + gap;
+        context.fill(rx, 0, rx + TAB_W, TAB_H, ACCENT_COLOR);
+        drawCentered(context, "逃逸小工具 ►", rx + TAB_W / 2, 5, 0xFFFFFFFF);
     }
 
     @Override
     public boolean mouseClicked(Click click, boolean doubleClick) {
-        double mouseX = click.x();
-        double mouseY = click.y();
-        int button = click.button();
+        double mx = click.x(), my = click.y();
+        int btn = click.button();
 
-        // 左键点击
-        if (button == 0) {
-            // 点击左侧标签（路径点管理）
-            int centerX = this.width / 2;
-            int centerY = this.height / 2;
-            int panelX = centerX - PANEL_WIDTH / 2;
-            int panelY = centerY - PANEL_HEIGHT / 2;
-            int tabWidth = PANEL_WIDTH / 2;
-            int tabY = panelY + 2;
-
-            if (mouseX >= panelX && mouseX <= panelX + tabWidth &&
-                    mouseY >= tabY && mouseY <= tabY + TAB_BAR_HEIGHT - 4) {
+        // Tab 栏
+        if (btn == 0) {
+            int gap = 4;
+            int startX = this.width / 2 - (TAB_W * 2 + gap) / 2;
+            if (mx >= startX && mx <= startX + TAB_W && my >= 0 && my <= TAB_H) {
+                saveToolStates();
                 this.client.setScreen(new WaypointScreen());
                 return true;
             }
+        }
 
-            // 点击启用勾选框
-            String enableLabel = config.isEnabled() ? "☑ 启用自动逃险" : "☐ 启用自动逃险";
-            int enableLabelWidth = this.textRenderer.getWidth(enableLabel);
-            if (mouseX >= enableCheckboxX && mouseX <= enableCheckboxX + enableLabelWidth &&
-                    mouseY >= enableCheckboxY && mouseY <= enableCheckboxY + CHECKBOX_HEIGHT) {
-                autoEscapeManager.toggle();
-                return true;
-            }
+        // 从上层窗口开始检测（最后渲染的在最上层）
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            ToolWindow win = windows.get(i);
+            int totalH = TITLE_BAR_H + getContentHeight(win);
 
-            // 点击自动确认勾选框
-            String autoConfirmLabel = config.isAutoConfirm() ? "☑ 自动确认" : "☐ 自动确认";
-            int autoConfirmLabelWidth = this.textRenderer.getWidth(autoConfirmLabel);
-            if (mouseX >= autoConfirmCheckboxX && mouseX <= autoConfirmCheckboxX + autoConfirmLabelWidth &&
-                    mouseY >= autoConfirmCheckboxY && mouseY <= autoConfirmCheckboxY + CHECKBOX_HEIGHT) {
-                autoEscapeManager.setAutoConfirm(!config.isAutoConfirm());
-                return true;
+            if (btn == 0) {
+                // 右边缘
+                if (mx >= win.x + win.w - RESIZE_ZONE && mx <= win.x + win.w + 2 &&
+                        my >= win.y && my <= win.y + totalH) {
+                    resizeWinIdx = i; resizeRight = true; resizeBottom = false;
+                    resizeStartW = win.w; resizeStartMX = (int) mx;
+                    return true;
+                }
+                // 底部边缘
+                if (win.expanded && mx >= win.x && mx <= win.x + win.w &&
+                        my >= win.y + totalH - RESIZE_ZONE && my <= win.y + totalH + 2) {
+                    resizeWinIdx = i; resizeBottom = true; resizeRight = false;
+                    resizeStartH = getContentHeight(win); resizeStartMY = (int) my;
+                    return true;
+                }
+                // 标题栏 → 拖拽/折叠
+                if (mx >= win.x && mx <= win.x + win.w && my >= win.y && my <= win.y + TITLE_BAR_H) {
+                    dragWinIdx = i;
+                    dragOffX = (int) mx - win.x;
+                    dragOffY = (int) my - win.y;
+                    dragStartX = mx; dragStartY = my;
+                    return true;
+                }
+                // 启用开关
+                if (win.expanded) {
+                    int cy = win.y + TITLE_BAR_H + PAD;
+                    if (win.id.equals("void_escape")) {
+                        AutoEscapeConfig vc = AutoEscapeManager.getInstance().getConfig();
+                        String el = vc.isEnabled() ? "☑ 启用" : "☐ 启用";
+                        if (clickIn(mx, my, win.x + PAD, cy, el)) {
+                            AutoEscapeManager.getInstance().toggle();
+                            return true;
+                        }
+                        cy += LINE_H * 3;
+                        String acl = vc.isAutoConfirm() ? "☑ 自动确认" : "☐ 自动确认";
+                        if (clickIn(mx, my, win.x + PAD, cy, acl)) {
+                            AutoEscapeManager.getInstance().setAutoConfirm(!vc.isAutoConfirm());
+                            return true;
+                        }
+                    } else {
+                        HealthMonitorConfig hc = HealthMonitorManager.getInstance().getConfig();
+                        String el = hc.isEnabled() ? "☑ 启用" : "☐ 启用";
+                        if (clickIn(mx, my, win.x + PAD, cy, el)) {
+                            HealthMonitorManager.getInstance().toggle();
+                            return true;
+                        }
+                        cy += LINE_H * 3;
+                        String acl = hc.isAutoConfirm() ? "☑ 自动确认" : "☐ 自动确认";
+                        if (clickIn(mx, my, win.x + PAD, cy, acl)) {
+                            HealthMonitorManager.getInstance().setAutoConfirm(!hc.isAutoConfirm());
+                            return true;
+                        }
+                    }
+                }
             }
         }
 
         return super.mouseClicked(click, doubleClick);
     }
 
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        // 检查是否在日志区域内滚动
-        int centerX = this.width / 2;
-        int centerY = this.height / 2;
-        int panelX = centerX - PANEL_WIDTH / 2;
-        int panelY = centerY - PANEL_HEIGHT / 2;
-        int logY = panelY + TAB_BAR_HEIGHT + 230;
+    private boolean clickIn(double mx, double my, int x, int y, String label) {
+        int w = this.textRenderer.getWidth(label);
+        return mx >= x && mx <= x + w && my >= y && my <= y + 16;
+    }
 
-        if (mouseX >= panelX + PADDING && mouseX <= panelX + PANEL_WIDTH - PADDING &&
-                mouseY >= logY + 15 && mouseY <= logY + 15 + LOG_VISIBLE_ENTRIES * LOG_ENTRY_HEIGHT) {
-            int scrollDelta = (int) (verticalAmount * 2);
-            logScrollOffset = Math.max(0, Math.min(maxLogScroll, logScrollOffset - scrollDelta));
+    @Override
+    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+        double mx = click.x(), my = click.y();
+
+        if (resizeWinIdx >= 0) {
+            ToolWindow win = windows.get(resizeWinIdx);
+            if (resizeRight) {
+                win.w = Math.max(MIN_W, Math.min(MAX_W, resizeStartW + (int) mx - resizeStartMX));
+            } else if (resizeBottom) {
+                win.maxHeight = Math.max(50, Math.min(500, resizeStartH + (int) my - resizeStartMY));
+            }
+            this.clearChildren();
+            rebuildFields();
             return true;
         }
 
+        if (dragWinIdx >= 0) {
+            ToolWindow win = windows.get(dragWinIdx);
+            double dist = Math.abs(mx - dragStartX) + Math.abs(my - dragStartY);
+            if (dist >= DRAG_THRESHOLD) {
+                win.x = Math.max(0, Math.min(this.width - win.w, (int) mx - dragOffX));
+                win.y = Math.max(TAB_H, Math.min(this.height - TITLE_BAR_H, (int) my - dragOffY));
+                this.clearChildren();
+                rebuildFields();
+            }
+            return true;
+        }
+
+        return super.mouseDragged(click, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(Click click) {
+        if (dragWinIdx >= 0) {
+            double mx = click.x(), my = click.y();
+            double dist = Math.abs(mx - dragStartX) + Math.abs(my - dragStartY);
+            if (dist < DRAG_THRESHOLD) {
+                // 短按 = 折叠/展开
+                ToolWindow win = windows.get(dragWinIdx);
+                win.expanded = !win.expanded;
+                this.clearChildren();
+                rebuildFields();
+                saveToolStates();
+            } else {
+                saveToolStates();
+            }
+        }
+        dragWinIdx = -1;
+        resizeWinIdx = -1;
+        resizeRight = false;
+        resizeBottom = false;
+        return super.mouseReleased(click);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            ToolWindow win = windows.get(i);
+            if (!win.expanded) continue;
+            int totalH = TITLE_BAR_H + getContentHeight(win);
+            if (mouseX >= win.x && mouseX <= win.x + win.w &&
+                    mouseY >= win.y + TITLE_BAR_H && mouseY <= win.y + totalH) {
+                List<String> logs = win.id.equals("void_escape") ?
+                        AutoEscapeManager.getInstance().getLogEntries() :
+                        HealthMonitorManager.getInstance().getLogEntries();
+                int maxScroll = Math.max(0, logs.size() - LOG_VISIBLE);
+                if (win.id.equals("void_escape")) {
+                    voidLogScroll = Math.max(0, Math.min(maxScroll, voidLogScroll - (int)(verticalAmount * 2)));
+                } else {
+                    healthLogScroll = Math.max(0, Math.min(maxScroll, healthLogScroll - (int)(verticalAmount * 2)));
+                }
+                return true;
+            }
+        }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
     @Override
     public void close() {
+        saveToolStates();
         this.client.setScreen(null);
     }
 
-    // ==================== 绘制工具方法 ====================
-
-    private void fillRoundedRect(DrawContext context, int x, int y, int width, int height, int color) {
-        context.fill(x + 2, y, x + width - 2, y + height, color);
-        context.fill(x, y + 2, x + width, y + height - 2, color);
+    @Override
+    public boolean shouldPause() {
+        return false;
     }
 
     private void drawText(DrawContext context, String text, int x, int y, int color) {
         context.drawTextWithShadow(this.textRenderer, text, x, y, color);
     }
 
-    private void drawCenteredText(DrawContext context, String text, int centerX, int y, int color) {
-        int textWidth = this.textRenderer.getWidth(text);
-        context.drawTextWithShadow(this.textRenderer, text, centerX - textWidth / 2, y, color);
-    }
-
-    @Override
-    public boolean shouldPause() {
-        return false;
+    private void drawCentered(DrawContext context, String text, int centerX, int y, int color) {
+        int w = this.textRenderer.getWidth(text);
+        context.drawTextWithShadow(this.textRenderer, text, centerX - w / 2, y, color);
     }
 }

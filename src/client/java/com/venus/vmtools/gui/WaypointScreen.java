@@ -143,7 +143,7 @@ public class WaypointScreen extends Screen {
 
         // 搜索框 - 顶部居中
         searchField = new TextFieldWidget(this.textRenderer,
-                centerX - 100, 8,
+                centerX - 100, 28,
                 200, 18,
                 Text.of("搜索..."));
         searchField.setPlaceholder(Text.literal("搜索路径点...").styled(style -> style.withColor(SUBTLE_COLOR)));
@@ -394,7 +394,7 @@ public class WaypointScreen extends Screen {
                 mouseY >= tabY && mouseY <= tabY + tabHeight;
         int aeColor = aeHovered ? HOVER_COLOR : HEADER_COLOR;
         context.fill(aeTabX, tabY, aeTabX + tabWidth, tabY + tabHeight, aeColor);
-        drawCenteredText(context, "自动逃逸", aeTabX + tabWidth / 2, tabY + 2, SUBTLE_COLOR);
+        drawCenteredText(context, "逃逸小工具", aeTabX + tabWidth / 2, tabY + 2, SUBTLE_COLOR);
     }
 
     /**
