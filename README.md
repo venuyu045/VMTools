@@ -42,7 +42,7 @@
 
 ### ✏️ 命令补全
 - 新建/编辑路径点时，命令输入框自动补全
-- 支持命令：`res tp`、`warp`、`home`、`tpa`、`tpask`、`ehome`
+- 支持命令：`res tp`、`warp`、`home`、`tpa`、`tpask`、`ehomes home`
 - 输入首字母自动匹配，支持多个匹配结果
 - **鼠标点击**选择 / **键盘 ↑↓** 切换 / **Tab 或 Enter** 确认
 
