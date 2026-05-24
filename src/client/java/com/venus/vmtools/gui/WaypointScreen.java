@@ -1,6 +1,7 @@
 package com.venus.vmtools.gui;
 
 import com.venus.vmtools.VMToolsClient;
+import com.venus.vmtools.gui.AutoEscapeScreen;
 import com.venus.vmtools.config.ModConfig;
 import com.venus.vmtools.feature.waypoint.Waypoint;
 import com.venus.vmtools.feature.waypoint.WaypointGroup;
@@ -141,7 +142,7 @@ public class WaypointScreen extends Screen {
 
         // 搜索框 - 顶部居中
         searchField = new TextFieldWidget(this.textRenderer,
-                centerX - 100, 8,
+                centerX - 100, 28,
                 200, 18,
                 Text.of("搜索..."));
         searchField.setPlaceholder(Text.literal("搜索路径点...").styled(style -> style.withColor(SUBTLE_COLOR)));
@@ -298,7 +299,7 @@ public class WaypointScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         // 渲染标题
-        drawCenteredText(context, "VMTools - 路径点管理", this.width / 2, 0, ACCENT_COLOR);
+        drawCenteredText(context, "VMTools", this.width / 2, 0, ACCENT_COLOR);
 
         // 渲染分组窗口（按 groupRenderOrder 顺序，最后渲染的在最上层）
         int autoLayoutY = 30;
@@ -365,6 +366,9 @@ public class WaypointScreen extends Screen {
         saveUIStateIfNeeded();
 
         super.render(context, mouseX, mouseY, delta);
+
+        // 渲染顶部 Tab 栏（最上层）
+        renderTabBar(context, mouseX, mouseY);
     }
 
     /**
@@ -630,8 +634,50 @@ public class WaypointScreen extends Screen {
         }
     }
 
+    /**
+     * 渲染顶部 Tab 切换栏
+     */
+    private void renderTabBar(DrawContext context, int mouseX, int mouseY) {
+        int tabHeight = 14;
+        int tabWidth = 90;
+        int gap = 4;
+        int totalWidth = tabWidth * 2 + gap;
+        int startX = this.width / 2 - totalWidth / 2;
+        int tabY = 12;
+
+        // 路径点管理 Tab（当前活跃）
+        int wpTabX = startX;
+        context.fill(wpTabX, tabY, wpTabX + tabWidth, tabY + tabHeight, ACCENT_COLOR);
+        drawCenteredText(context, "路径点管理", wpTabX + tabWidth / 2, tabY + 2, 0xFFFFFFFF);
+
+        // 自动逃逸 Tab
+        int aeTabX = startX + tabWidth + gap;
+        boolean aeHovered = mouseX >= aeTabX && mouseX <= aeTabX + tabWidth &&
+                mouseY >= tabY && mouseY <= tabY + tabHeight;
+        int aeColor = aeHovered ? HOVER_COLOR : HEADER_COLOR;
+        context.fill(aeTabX, tabY, aeTabX + tabWidth, tabY + tabHeight, aeColor);
+        drawCenteredText(context, "逃逸小工具", aeTabX + tabWidth / 2, tabY + 2, SUBTLE_COLOR);
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // Tab 栏点击检测
+        if (button == 0) {
+            int tabHeight = 14;
+            int tabWidth = 90;
+            int gap = 4;
+            int totalWidth = tabWidth * 2 + gap;
+            int startX = this.width / 2 - totalWidth / 2;
+            int tabY = 12;
+            // 自动逃逸 Tab
+            int aeTabX = startX + tabWidth + gap;
+            if (mouseX >= aeTabX && mouseX <= aeTabX + tabWidth &&
+                    mouseY >= tabY && mouseY <= tabY + tabHeight) {
+                this.client.setScreen(new AutoEscapeScreen());
+                return true;
+            }
+        }
+
         // 右键菜单处理
         if (showContextMenu) {
             if (button == 0) { // 左键点击菜单项
