@@ -1,6 +1,7 @@
 package com.venus.vmtools.gui;
 
 import com.venus.vmtools.VMToolsClient;
+import com.venus.vmtools.gui.AutoEscapeScreen;
 import com.venus.vmtools.feature.waypoint.Waypoint;
 import com.venus.vmtools.feature.waypoint.WaypointGroup;
 import com.venus.vmtools.feature.waypoint.WaypointIO;
@@ -333,6 +334,34 @@ public class WaypointScreen extends Screen {
         saveUIStateIfNeeded();
 
         super.extractRenderState(context, mouseX, mouseY, delta);
+
+        // 渲染顶部 Tab 栏（最上层）
+        renderTabBar(context, mouseX, mouseY);
+    }
+
+    /**
+     * 渲染顶部 Tab 切换栏
+     */
+    private void renderTabBar(GuiGraphicsExtractor context, int mouseX, int mouseY) {
+        int tabHeight = 14;
+        int tabWidth = 90;
+        int gap = 4;
+        int totalWidth = tabWidth * 2 + gap;
+        int startX = this.width / 2 - totalWidth / 2;
+        int tabY = 12;
+
+        // 路径点管理 Tab（当前活跃）
+        int wpTabX = startX;
+        context.fill(wpTabX, tabY, wpTabX + tabWidth, tabY + tabHeight, ACCENT_COLOR);
+        drawCenteredText(context, "路径点管理", wpTabX + tabWidth / 2, tabY + 2, 0xFFFFFFFF);
+
+        // 自动逃逸 Tab
+        int aeTabX = startX + tabWidth + gap;
+        boolean aeHovered = mouseX >= aeTabX && mouseX <= aeTabX + tabWidth &&
+                mouseY >= tabY && mouseY <= tabY + tabHeight;
+        int aeColor = aeHovered ? HOVER_COLOR : HEADER_COLOR;
+        context.fill(aeTabX, tabY, aeTabX + tabWidth, tabY + tabHeight, aeColor);
+        drawCenteredText(context, "逃逸小工具", aeTabX + tabWidth / 2, tabY + 2, SUBTLE_COLOR);
     }
 
     /**
@@ -598,6 +627,23 @@ public class WaypointScreen extends Screen {
         double mouseX = event.x();
         double mouseY = event.y();
         int button = event.button();
+
+        // Tab 栏点击处理
+        if (button == 0) {
+            int tabHeight = 14;
+            int tabWidth = 90;
+            int gap = 4;
+            int totalWidth = tabWidth * 2 + gap;
+            int startX = this.width / 2 - totalWidth / 2;
+            int tabY = 12;
+            // 自动逃逸 Tab
+            int aeTabX = startX + tabWidth + gap;
+            if (mouseX >= aeTabX && mouseX <= aeTabX + tabWidth &&
+                    mouseY >= tabY && mouseY <= tabY + tabHeight) {
+                this.minecraft.setScreen(new AutoEscapeScreen());
+                return true;
+            }
+        }
 
         // 右键菜单处理
         if (showContextMenu) {
