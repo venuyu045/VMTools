@@ -19,9 +19,6 @@ public class KeybindManager {
     // 路径点管理界面快捷键（默认 M 键）
     private KeyBinding waypointKey;
 
-    // 快捷传送快捷键（默认 Ctrl+T）
-    private KeyBinding quickTeleportKey;
-
     /**
      * 注册所有快捷键
      */
@@ -33,14 +30,6 @@ public class KeybindManager {
                 "key.vmtools.waypoints",           // 翻译键
                 InputUtil.Type.KEYSYM,              // 键类型
                 GLFW.GLFW_KEY_M,                    // 默认键 M
-                vmtoolsCategory                     // 分类
-        ));
-
-        // 注册快捷传送快捷键
-        quickTeleportKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.vmtools.quick_teleport",       // 翻译键
-                InputUtil.Type.KEYSYM,              // 键类型
-                GLFW.GLFW_KEY_T,                    // 默认键 T
                 vmtoolsCategory                     // 分类
         ));
 
@@ -61,17 +50,6 @@ public class KeybindManager {
             }
         }
 
-        // 检测快捷传送快捷键（需要 Ctrl 修饰）
-        while (quickTeleportKey.wasPressed()) {
-            // 检查是否按住了 Ctrl
-            long window = client.getWindow().getHandle();
-            boolean ctrlPressed = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS ||
-                                  GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
-            if (ctrlPressed && client.currentScreen == null) {
-                // TODO: 打开快捷传送界面（后续实现）
-                VMToolsClient.LOGGER.info("快捷传送功能待实现");
-            }
-        }
     }
 
     /**
@@ -82,20 +60,9 @@ public class KeybindManager {
     }
 
     /**
-     * 获取快捷传送快捷键
-     */
-    public KeyBinding getQuickTeleportKey() {
-        return quickTeleportKey;
-    }
-
-    /**
      * 获取快捷键的显示名称
      */
     public String getWaypointKeyName() {
         return waypointKey.getBoundKeyLocalizedText().getString();
-    }
-
-    public String getQuickTeleportKeyName() {
-        return quickTeleportKey.getBoundKeyLocalizedText().getString();
     }
 }
