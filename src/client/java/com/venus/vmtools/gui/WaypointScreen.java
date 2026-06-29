@@ -2,12 +2,14 @@ package com.venus.vmtools.gui;
 
 import com.venus.vmtools.VMToolsClient;
 import com.venus.vmtools.gui.AutoEscapeScreen;
+import com.venus.vmtools.config.ModConfig;
 import com.venus.vmtools.feature.waypoint.Waypoint;
 import com.venus.vmtools.feature.waypoint.WaypointGroup;
 import com.venus.vmtools.feature.waypoint.WaypointIO;
 import com.venus.vmtools.feature.waypoint.WaypointManager;
 import com.venus.vmtools.feature.waypoint.UIState;
 import com.venus.vmtools.gui.component.ToastWidget;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -96,12 +98,28 @@ public class WaypointScreen extends Screen {
     private double wpDragStartMouseX = 0;         // 路径点拖拽开始时鼠标X
     private double wpDragStartMouseY = 0;         // 路径点拖拽开始时鼠标Y
 
+    // 窗口宽度调整状态
+    private String resizingGroupId = null;
+    private boolean resizingWidth = false; // true=调整宽度, false=调整高度
+    private int resizeStartWidth = 0;
+    private int resizeStartHeight = 0;
+    private int resizeStartMouseX = 0;
+    private int resizeStartMouseY = 0;
+    private static final int MIN_WINDOW_WIDTH = 120;
+    private static final int MAX_WINDOW_WIDTH = 400;
+    private static final int MIN_WINDOW_HEIGHT = 50;
+    private static final int MAX_WINDOW_HEIGHT = 500;
+    private static final int RESIZE_HANDLE_SIZE = 6; // 拖拽区域宽度/高度
+
     /**
      * 分组窗口状态
      */
     private static class GroupWindowState {
         int x, y;                    // 窗口位置
         int width = 200;             // 窗口宽度（动态计算）
+        boolean customWidth = false; // 用户是否手动设置了宽度
+        int maxHeight = 150;         // 内容区最大高度（可拖动调整）
+        boolean customHeight = false;// 用户是否手动设置了高度
         boolean expanded = false;    // 是否展开
         int scrollOffset = 0;        // 滚动偏移
         int maxScroll = 0;           // 最大滚动值
@@ -133,9 +151,9 @@ public class WaypointScreen extends Screen {
         this.addRenderableWidget(searchField);
 
         // 底部按钮 - 在屏幕最底部居中
-        int btnWidth = 70;
-        int btnSpacing = 5;
-        int totalBtnWidth = btnWidth * 4 + btnSpacing * 3;
+        int btnWidth = 60;
+        int btnSpacing = 4;
+        int totalBtnWidth = btnWidth * 6 + btnSpacing * 5;
         int btnStartX = centerX - totalBtnWidth / 2;
         int btnY = this.height - 30;
 
@@ -147,7 +165,7 @@ public class WaypointScreen extends Screen {
         this.addRenderableWidget(Button.builder(
                 Component.literal("+ 分组"),
                 button -> openAddGroupScreen()
-        ).bounds(btnStartX + btnWidth + btnSpacing, btnY, btnWidth, BUTTON_HEIGHT).build());
+        ).bounds(btnStartX + (btnWidth + btnSpacing), btnY, btnWidth, BUTTON_HEIGHT).build());
 
         this.addRenderableWidget(Button.builder(
                 Component.literal("导入"),
@@ -158,6 +176,16 @@ public class WaypointScreen extends Screen {
                 Component.literal("导出"),
                 button -> exportWaypoints()
         ).bounds(btnStartX + (btnWidth + btnSpacing) * 3, btnY, btnWidth, BUTTON_HEIGHT).build());
+
+        this.addRenderableWidget(Button.builder(
+                Component.literal("设置"),
+                button -> this.minecraft.setScreen(new SettingsScreen(this))
+        ).bounds(btnStartX + (btnWidth + btnSpacing) * 4, btnY, btnWidth, BUTTON_HEIGHT).build());
+
+        this.addRenderableWidget(Button.builder(
+                Component.literal("Back"),
+                button -> sendBackCommand()
+        ).bounds(btnStartX + (btnWidth + btnSpacing) * 5, btnY, btnWidth, BUTTON_HEIGHT).build());
 
         // 初始化窗口位置（仅新分组）
         updateWindowPositions();
@@ -230,6 +258,14 @@ public class WaypointScreen extends Screen {
                 if (saved != null) {
                     GroupWindowState state = new GroupWindowState(saved.x, saved.y);
                     state.expanded = saved.expanded;
+                    if (saved.width > 0) {
+                        state.width = saved.width;
+                        state.customWidth = true;
+                    }
+                    if (saved.maxHeight > 0) {
+                        state.maxHeight = saved.maxHeight;
+                        state.customHeight = true;
+                    }
                     windowStates.put(groupId, state);
                 } else {
                     windowStates.put(groupId, new GroupWindowState(centerX, startY));
@@ -257,7 +293,7 @@ public class WaypointScreen extends Screen {
         int maxWpWidth = 0;
         for (Waypoint wp : group.getWaypoints()) {
             int wpWidth = this.font.width(wp.getColor().getEmoji() + " " + wp.getName())
-                    + DRAG_HANDLE_WIDTH + 60; // 60 = padding + 传送按钮
+                    + DRAG_HANDLE_WIDTH + PADDING * 2;
             maxWpWidth = Math.max(maxWpWidth, wpWidth);
         }
 
@@ -294,8 +330,10 @@ public class WaypointScreen extends Screen {
                 windowStates.put(group.getId(), state);
             }
 
-            // 动态计算宽度
-            state.width = calculateWindowWidth(group);
+            // 动态计算宽度（用户手动设置过则不覆盖）
+            if (!state.customWidth) {
+                state.width = calculateWindowWidth(group);
+            }
 
             renderGroupWindow(context, group, state, mouseX, mouseY);
 
@@ -415,6 +453,13 @@ public class WaypointScreen extends Screen {
         int countWidth = this.font.width(count);
         drawText(context, count, x + w - countWidth - PADDING, y + 5, SUBTLE_COLOR);
 
+        // 右边框悬浮高亮（宽度拖拽区域）- 全窗口高度
+        boolean isRightBorderHovered = mouseX >= x + w - RESIZE_HANDLE_SIZE && mouseX <= x + w + 2 &&
+                mouseY >= y && mouseY <= y + windowHeight;
+        if (isRightBorderHovered || (resizingGroupId != null && resizingGroupId.equals(group.getId()) && resizingWidth)) {
+            context.fill(x + w - 1, y, x + w, y + windowHeight, 0x887C3AED);
+        }
+
         // 展开的路径点列表
         if (state.expanded) {
             int contentY = y + TITLE_BAR_HEIGHT;
@@ -424,7 +469,6 @@ public class WaypointScreen extends Screen {
             context.enableScissor(x, contentY, x + w, contentY + contentHeight);
 
             int waypointY = contentY - state.scrollOffset;
-            int teleportBtnWidth = 40;
             int nameX = x + PADDING + DRAG_HANDLE_WIDTH + 2; // 名称 X 起点（留出手柄空间）
             int hoverStartX = nameX; // 悬停检测起始 X
 
@@ -442,14 +486,14 @@ public class WaypointScreen extends Screen {
                 boolean isDraggingThis = draggingWpId != null && draggingWpId.equals(wp.getId());
 
                 // 渲染路径点行
-                boolean isWpHovered = mouseX >= hoverStartX && mouseX <= x + w - teleportBtnWidth - 12 &&
+                boolean isWpHovered = mouseX >= hoverStartX && mouseX <= x + w - 4 &&
                         mouseY >= waypointY && mouseY >= contentY &&
                         mouseY <= waypointY + WAYPOINT_ROW_HEIGHT && mouseY <= contentY + contentHeight;
 
                 // 路径点行背景
                 int wpBg = isWpHovered ? 0xFF3A3A55 : 0x00000000;
                 if (wpBg != 0x00000000 && !isDraggingThis) {
-                    fillRoundedRect(context, hoverStartX, waypointY, w - (hoverStartX - x) - 4 - teleportBtnWidth, WAYPOINT_ROW_HEIGHT, wpBg);
+                    fillRoundedRect(context, hoverStartX, waypointY, w - (hoverStartX - x) - 4, WAYPOINT_ROW_HEIGHT, wpBg);
                 }
 
                 // 拖拽手柄区域
@@ -485,19 +529,6 @@ public class WaypointScreen extends Screen {
                 drawText(context, wp.getColor().getEmoji() + " " + wp.getName(),
                         nameX, waypointY + 4, textColor);
 
-                // 传送按钮
-                int tpBtnX = x + w - teleportBtnWidth - 8;
-                boolean isTpHovered = mouseX >= tpBtnX && mouseX <= tpBtnX + teleportBtnWidth &&
-                        mouseY >= waypointY + 2 && mouseY >= contentY &&
-                        mouseY <= waypointY + WAYPOINT_ROW_HEIGHT - 2 && mouseY <= contentY + contentHeight;
-                int tpBtnColor = isTpHovered ? 0xFF6D28D9 : ACCENT_COLOR;
-                if (isDraggingThis) {
-                    tpBtnColor = tpBtnColor & 0x80FFFFFF;
-                }
-                fillRoundedRect(context, tpBtnX, waypointY + 2, teleportBtnWidth, WAYPOINT_ROW_HEIGHT - 4, tpBtnColor);
-                int tpTextColor = isDraggingThis ? (0xFFFFFFFF & 0x80FFFFFF) : 0xFFFFFFFF;
-                drawCenteredText(context, "传送", tpBtnX + teleportBtnWidth / 2, waypointY + 5, tpTextColor);
-
                 waypointY += WAYPOINT_ROW_HEIGHT + 2;
             }
 
@@ -507,6 +538,15 @@ public class WaypointScreen extends Screen {
             // 渲染滚动条
             if (state.maxScroll > 0) {
                 renderScrollbar(context, x + w - 6, contentY, 4, contentHeight, state);
+            }
+
+            // 底部边框高亮（高度拖拽区域）- 在 scissor 外渲染
+            int bottomY = contentY + contentHeight;
+            boolean isBottomHovered = mouseX >= x && mouseX <= x + w &&
+                    mouseY >= bottomY - RESIZE_HANDLE_SIZE && mouseY <= bottomY + 2;
+            boolean isResizingThis = resizingGroupId != null && resizingGroupId.equals(group.getId()) && !resizingWidth;
+            if (isBottomHovered || isResizingThis) {
+                context.fill(x + 2, bottomY - 2, x + w - 2, bottomY, 0x887C3AED);
             }
         }
     }
@@ -564,8 +604,9 @@ public class WaypointScreen extends Screen {
             visibleCount++;
         }
         int totalHeight = visibleCount * (WAYPOINT_ROW_HEIGHT + 2);
-        state.maxScroll = Math.max(0, totalHeight - WAYPOINT_AREA_MAX_HEIGHT);
-        return Math.min(totalHeight, WAYPOINT_AREA_MAX_HEIGHT);
+        int maxH = state.maxHeight > 0 ? state.maxHeight : WAYPOINT_AREA_MAX_HEIGHT;
+        state.maxScroll = Math.max(0, totalHeight - maxH);
+        return Math.min(totalHeight, maxH);
     }
 
     /**
@@ -594,8 +635,8 @@ public class WaypointScreen extends Screen {
             labels = new String[]{"展开/折叠", "编辑", "删除"};
             colors = new int[]{TEXT_COLOR, TEXT_COLOR, DANGER_COLOR};
         } else {
-            labels = new String[]{"传送", "编辑", "复制", "删除"};
-            colors = new int[]{SUCCESS_COLOR, TEXT_COLOR, TEXT_COLOR, DANGER_COLOR};
+            labels = new String[]{"编辑", "复制", "删除"};
+            colors = new int[]{TEXT_COLOR, TEXT_COLOR, DANGER_COLOR};
         }
 
         int menuItems = labels.length;
@@ -685,6 +726,29 @@ public class WaypointScreen extends Screen {
                 windowHeight += getWindowHeight(group, state);
             }
 
+            // 右边框宽度拖拽
+            if (button == 0 && mouseX >= x + w - RESIZE_HANDLE_SIZE && mouseX <= x + w + 2 &&
+                    mouseY >= y && mouseY <= y + windowHeight) {
+                resizingGroupId = group.getId();
+                resizingWidth = true;
+                resizeStartWidth = w;
+                resizeStartMouseX = (int) mouseX;
+                bringGroupToFront(group.getId());
+                return true;
+            }
+
+            // 底部边框高度拖拽
+            if (state.expanded && button == 0 &&
+                    mouseX >= x && mouseX <= x + w &&
+                    mouseY >= y + windowHeight - RESIZE_HANDLE_SIZE && mouseY <= y + windowHeight + 2) {
+                resizingGroupId = group.getId();
+                resizingWidth = false;
+                resizeStartHeight = windowHeight - TITLE_BAR_HEIGHT;
+                resizeStartMouseY = (int) mouseY;
+                bringGroupToFront(group.getId());
+                return true;
+            }
+
             // 检查点击是否在窗口内
             if (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + windowHeight) {
                 // 点击标题栏
@@ -714,7 +778,6 @@ public class WaypointScreen extends Screen {
                     int contentY = y + TITLE_BAR_HEIGHT;
                     int contentHeight = getWindowHeight(group, state);
                     int waypointY = contentY - state.scrollOffset;
-                    int teleportBtnWidth = 40;
                     int nameX = x + PADDING + DRAG_HANDLE_WIDTH + 2;
 
                     // 确保新点击不会被误认为是正在拖拽路径点
@@ -747,15 +810,8 @@ public class WaypointScreen extends Screen {
                                 return true;
                             }
 
-                            // 检查是否点击了传送按钮
-                            int tpBtnX = x + w - teleportBtnWidth - 8;
-                            if (mouseX >= tpBtnX && mouseX <= tpBtnX + teleportBtnWidth) {
-                                executeTeleport(wp);
-                                return true;
-                            }
-
-                            // 左键点击路径点名称 - 传送
-                            if (button == 0 && mouseX >= nameX && mouseX < tpBtnX) {
+                            // 左键点击路径点名称区域 - 传送
+                            if (button == 0 && mouseX >= nameX) {
                                 executeTeleport(wp);
                                 return true;
                             }
@@ -825,6 +881,23 @@ public class WaypointScreen extends Screen {
             return true;
         }
 
+        // 分组窗口尺寸调整
+        if (resizingGroupId != null && button == 0) {
+            GroupWindowState state = windowStates.get(resizingGroupId);
+            if (state != null) {
+                if (resizingWidth) {
+                    int deltaW = (int) mouseX - resizeStartMouseX;
+                    state.width = Math.max(MIN_WINDOW_WIDTH, Math.min(MAX_WINDOW_WIDTH, resizeStartWidth + deltaW));
+                    state.customWidth = true;
+                } else {
+                    int deltaH = (int) mouseY - resizeStartMouseY;
+                    state.maxHeight = Math.max(MIN_WINDOW_HEIGHT, Math.min(MAX_WINDOW_HEIGHT, resizeStartHeight + deltaH));
+                    state.customHeight = true;
+                }
+            }
+            return true;
+        }
+
         // 分组窗口拖拽
         if (draggingGroupId != null && button == 0) {
             GroupWindowState state = windowStates.get(draggingGroupId);
@@ -878,6 +951,13 @@ public class WaypointScreen extends Screen {
             draggingWpCurrentIndex = -1;
             draggingWpStartY = 0;
             wpDragTracking = false;
+            return true;
+        }
+
+        // 宽度调整释放
+        if (button == 0 && resizingGroupId != null) {
+            resizingGroupId = null;
+            markUIStateDirty();
             return true;
         }
 
@@ -963,7 +1043,7 @@ public class WaypointScreen extends Screen {
         if (contextMenuType == MENU_TYPE_GROUP) {
             menuItems = 3;
         } else {
-            menuItems = 4;
+            menuItems = 3;
         }
 
         int menuHeight = menuItemHeight * menuItems + 4;
@@ -998,16 +1078,13 @@ public class WaypointScreen extends Screen {
                 } else {
                     // 路径点菜单
                     switch (i) {
-                        case 0: // 传送
-                            executeTeleport(contextMenuWaypoint);
-                            break;
-                        case 1: // 编辑
+                        case 0: // 编辑
                             openEditWaypointScreen(contextMenuWaypoint, contextMenuGroup);
                             break;
-                        case 2: // 复制
+                        case 1: // 复制
                             copyWaypoint(contextMenuWaypoint, contextMenuGroup);
                             break;
-                        case 3: // 删除
+                        case 2: // 删除
                             confirmDeleteWaypoint(contextMenuWaypoint, contextMenuGroup);
                             break;
                     }
@@ -1060,11 +1137,48 @@ public class WaypointScreen extends Screen {
             boolean success = waypointManager.executeTeleport(waypoint);
             if (success) {
                 ToastWidget.showSuccess("已发送: " + waypoint.getCommand());
+
+                // 自动确认传送（检查路径点级别设置 → 全局设置）
+                ModConfig config = VMToolsClient.getInstance().getConfig();
+                boolean shouldConfirm = waypoint.shouldAutoConfirm(config.isAutoConfirmTeleport());
+                if (shouldConfirm && !config.getConfirmCommand().trim().isEmpty()) {
+                    String confirmCmd = config.getConfirmCommand().trim();
+                    if (confirmCmd.startsWith("/")) confirmCmd = confirmCmd.substring(1);
+                    int delay = config.getConfirmDelay();
+                    final String cmd = confirmCmd;
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(delay);
+                            Minecraft.getInstance().execute(() -> {
+                                Minecraft mc = Minecraft.getInstance();
+                                if (mc.player != null && mc.getConnection() != null) {
+                                    mc.getConnection().sendCommand(cmd);
+                                    ToastWidget.showInfo("已自动确认: /" + cmd);
+                                }
+                            });
+                        } catch (InterruptedException ignored) {}
+                    }, "vmtools-auto-confirm").start();
+                }
+
                 this.onClose();
             } else {
                 ToastWidget.showError("传送失败：未连接到服务器");
             }
         }
+    }
+
+    /**
+     * 发送 Back 命令 — 传送回 /res tp 之前的位置
+     * 前提：传送前已通过 /edithome resback relocate 保存了坐标
+     */
+    private void sendBackCommand() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.getConnection() == null) {
+            ToastWidget.showError("未连接到服务器");
+            return;
+        }
+        mc.getConnection().sendCommand("home resback");
+        ToastWidget.showSuccess("已发送返回命令: /home resback");
     }
 
     /**
@@ -1265,7 +1379,7 @@ public class WaypointScreen extends Screen {
     private void doSaveUIState() {
         for (Map.Entry<String, GroupWindowState> entry : windowStates.entrySet()) {
             GroupWindowState state = entry.getValue();
-            uiState.setWindowState(entry.getKey(), state.x, state.y, state.expanded);
+            uiState.setWindowState(entry.getKey(), state.x, state.y, state.expanded, state.width, state.maxHeight);
         }
         uiState.setGroupRenderOrder(new ArrayList<>(groupRenderOrder));
         uiState.save();

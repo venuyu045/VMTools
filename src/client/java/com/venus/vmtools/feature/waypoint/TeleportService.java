@@ -1,6 +1,8 @@
 package com.venus.vmtools.feature.waypoint;
 
 import com.venus.vmtools.VMToolsClient;
+import com.venus.vmtools.config.ModConfig;
+import com.venus.vmtools.feature.freeze.FreezeManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
@@ -30,10 +32,23 @@ public class TeleportService {
             return false;
         }
 
+        // 仅对 /res tp 和 /home 命令启用冻结（绕过移动检测）
+        if (shouldFreeze(normalizedCommand)) {
+            FreezeManager.getInstance().activate(3000);
+        }
+
+        // 对 /res tp 命令：传送前先保存当前坐标到 resback
+        final boolean saveBack = isResTp(normalizedCommand);
+
         // 发送命令到服务器
         final String finalCommand = normalizedCommand;
         client.execute(() -> {
             try {
+                // /res tp 传送前：将当前位置保存为 resback home 点
+                if (saveBack) {
+                    client.getConnection().sendCommand("edithome resback relocate");
+                }
+
                 // 使用 networkHandler.sendChatCommand 发送命令（不显示在聊天栏）
                 client.getConnection().sendCommand(finalCommand);
                 VMToolsClient.LOGGER.info("已发送传送命令: /{}", finalCommand);
@@ -51,6 +66,29 @@ public class TeleportService {
         });
 
         return true;
+    }
+
+    /**
+     * 判断是否应该对该命令启用移动冻结
+     * 条件：功能开启 && 命令属于 res tp 或 home
+     */
+    private static boolean shouldFreeze(String normalizedCommand) {
+        ModConfig config = VMToolsClient.getInstance().getConfig();
+        if (!config.isFreezeEnabled()) {
+            return false;
+        }
+
+        String lower = normalizedCommand.toLowerCase();
+        return lower.startsWith("res tp ") || lower.equals("res tp")
+                || lower.startsWith("home ") || lower.equals("home");
+    }
+
+    /**
+     * 判断命令是否属于 res tp（需要保存 back 位置）
+     */
+    private static boolean isResTp(String normalizedCommand) {
+        String lower = normalizedCommand.toLowerCase();
+        return lower.startsWith("res tp ") || lower.equals("res tp");
     }
 
     /**

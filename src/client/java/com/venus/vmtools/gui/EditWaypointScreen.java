@@ -22,7 +22,7 @@ import java.util.List;
 public class EditWaypointScreen extends Screen {
 
     private static final int PANEL_WIDTH = 260;
-    private static final int PANEL_HEIGHT = 230;
+    private static final int PANEL_HEIGHT = 260;
     private static final int PADDING = 12;
 
     // 颜色定义
@@ -56,6 +56,11 @@ public class EditWaypointScreen extends Screen {
     private int colorPickerX, colorPickerY;
     private static final int COLOR_SIZE = 22;
     private static final int COLOR_SPACING = 4;
+
+    // 自动确认开关
+    private boolean autoConfirmEnabled = false;
+    private int autoConfirmX, autoConfirmY;
+    private static final int AUTO_CONFIRM_HEIGHT = 18;
 
     public EditWaypointScreen(WaypointScreen parentScreen, Waypoint editingWaypoint, WaypointGroup targetGroup) {
         super(Component.literal(editingWaypoint == null ? "添加路径点" : "编辑路径点"));
@@ -127,7 +132,13 @@ public class EditWaypointScreen extends Screen {
 
         if (isEditMode) {
             selectedColor = editingWaypoint.getColor();
+            Boolean ac = editingWaypoint.getAutoConfirm();
+            autoConfirmEnabled = ac != null && ac;
         }
+
+        // 自动确认开关布局
+        autoConfirmX = panelX + PADDING + 50;
+        autoConfirmY = panelY + 160;
 
         // 保存按钮
         this.addRenderableWidget(Button.builder(
@@ -172,9 +183,18 @@ public class EditWaypointScreen extends Screen {
         // 渲染颜色选择器
         renderColorPicker(context, mouseX, mouseY);
 
+        // 渲染自动确认开关
+        renderAutoConfirmToggle(context, mouseX, mouseY);
+
         // 提示文字
         drawCenteredText(context, "命令示例: /res tp xxx, /home, /warp xxx",
-                centerX, panelY + PANEL_HEIGHT - 55, SUBTLE_COLOR);
+                centerX, panelY + PANEL_HEIGHT - 60, SUBTLE_COLOR);
+
+        // 如果开启自动确认，显示提示
+        if (autoConfirmEnabled) {
+            drawCenteredText(context, "自动确认: 点击传送后自动执行确认命令",
+                    centerX, panelY + PANEL_HEIGHT - 48, 0xFF4ADE80);
+        }
 
         super.extractRenderState(context, mouseX, mouseY, delta);
     }
@@ -248,6 +268,25 @@ public class EditWaypointScreen extends Screen {
         }
     }
 
+    /**
+     * 渲染自动确认开关
+     */
+    private void renderAutoConfirmToggle(GuiGraphicsExtractor context, int mouseX, int mouseY) {
+        boolean hovered = mouseX >= autoConfirmX && mouseX <= autoConfirmX + 120 &&
+                mouseY >= autoConfirmY && mouseY <= autoConfirmY + AUTO_CONFIRM_HEIGHT;
+
+        String label = autoConfirmEnabled ? "☑ 自动确认" : "☐ 自动确认";
+        int color = autoConfirmEnabled ? 0xFF4ADE80 : (hovered ? TEXT_COLOR : SUBTLE_COLOR);
+
+        drawText(context, label, autoConfirmX, autoConfirmY + 2, color);
+
+        if (hovered) {
+            String tip = autoConfirmEnabled ? "点击关闭自动确认" : "点击开启自动确认";
+            int tipX = autoConfirmX + this.font.width(label) + 8;
+            drawText(context, tip, tipX, autoConfirmY + 2, 0xFF888888);
+        }
+    }
+
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         double mouseX = event.x();
@@ -283,6 +322,13 @@ public class EditWaypointScreen extends Screen {
                     selectedColor = colors[i];
                     return true;
                 }
+            }
+
+            // 点击自动确认开关
+            if (mouseX >= autoConfirmX && mouseX <= autoConfirmX + 120 &&
+                    mouseY >= autoConfirmY && mouseY <= autoConfirmY + AUTO_CONFIRM_HEIGHT) {
+                autoConfirmEnabled = !autoConfirmEnabled;
+                return true;
             }
         }
 
@@ -322,6 +368,7 @@ public class EditWaypointScreen extends Screen {
             editingWaypoint.setName(name);
             editingWaypoint.setCommand(command);
             editingWaypoint.setColor(selectedColor);
+            editingWaypoint.setAutoConfirm(autoConfirmEnabled ? true : null);
 
             // 处理分组变更
             if (!editingWaypoint.getGroupId().equals(selectedGroup.getId())) {
@@ -339,6 +386,7 @@ public class EditWaypointScreen extends Screen {
             // 添加模式
             Waypoint newWaypoint = new Waypoint(name, command, selectedGroup.getId());
             newWaypoint.setColor(selectedColor);
+            newWaypoint.setAutoConfirm(autoConfirmEnabled ? true : null);
             selectedGroup.addWaypoint(newWaypoint);
             waypointManager.save();
             ToastWidget.showSuccess("路径点已创建");

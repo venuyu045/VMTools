@@ -62,6 +62,18 @@ public class ModConfig {
     // 是否显示使用次数
     private boolean showUseCount = true;
 
+    // 自动确认传送（传送后自动执行确认命令）
+    private boolean autoConfirmTeleport = false;
+
+    // 确认传送命令（如 "res tpconfirm"）
+    private String confirmCommand = "res tpconfirm";
+
+    // 确认传送延迟（毫秒）
+    private int confirmDelay = 200;
+
+    // 绕过移动检测（传送时冻结移动包）
+    private boolean freezeEnabled = true;
+
     /**
      * 从文件加载配置
      */
@@ -131,5 +143,37 @@ public class ModConfig {
 
     public void setShowUseCount(boolean showUseCount) {
         this.showUseCount = showUseCount;
+    }
+
+    public boolean isAutoConfirmTeleport() {
+        return autoConfirmTeleport;
+    }
+
+    public void setAutoConfirmTeleport(boolean autoConfirmTeleport) {
+        this.autoConfirmTeleport = autoConfirmTeleport;
+    }
+
+    public String getConfirmCommand() {
+        return confirmCommand;
+    }
+
+    public void setConfirmCommand(String confirmCommand) {
+        this.confirmCommand = confirmCommand;
+    }
+
+    public int getConfirmDelay() {
+        return confirmDelay;
+    }
+
+    public void setConfirmDelay(int confirmDelay) {
+        this.confirmDelay = Math.max(100, Math.min(2000, confirmDelay));
+    }
+
+    public boolean isFreezeEnabled() {
+        return freezeEnabled;
+    }
+
+    public void setFreezeEnabled(boolean freezeEnabled) {
+        this.freezeEnabled = freezeEnabled;
     }
 }

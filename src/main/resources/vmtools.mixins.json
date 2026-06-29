@@ -3,6 +3,7 @@
   "package": "com.venus.vmtools.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "LocalPlayerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -32,6 +32,8 @@ public class UIState {
         public int x;
         public int y;
         public boolean expanded;
+        public int width = -1; // -1 表示使用默认动态宽度
+        public int maxHeight = -1; // -1 表示使用默认高度
 
         public WindowState() {}
 
@@ -86,8 +88,11 @@ public class UIState {
     /**
      * 设置分组窗口状态
      */
-    public void setWindowState(String groupId, int x, int y, boolean expanded) {
-        windowStates.put(groupId, new WindowState(x, y, expanded));
+    public void setWindowState(String groupId, int x, int y, boolean expanded, int width, int maxHeight) {
+        WindowState ws = new WindowState(x, y, expanded);
+        ws.width = width;
+        ws.maxHeight = maxHeight;
+        windowStates.put(groupId, ws);
     }
 
     /**
