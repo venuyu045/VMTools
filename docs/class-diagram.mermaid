@@ -1,0 +1,197 @@
+classDiagram
+    class VMToolsClient {
+        -ModConfig config
+        -WaypointManager waypointManager
+        -KeybindManager keybindManager
+        -WaypointService waypointService
+        -GroupService groupService
+        -TeleportService teleportService
+        -ImportExportService importExportService
+        +onInitializeClient() void
+        +saveAll() void
+        +getConfig() ModConfig
+        +getWaypointManager() WaypointManager
+        +getKeybindManager() KeybindManager
+        +getWaypointService() WaypointService
+        +getGroupService() GroupService
+        +getTeleportService() TeleportService
+        +getImportExportService() ImportExportService
+    }
+
+    class ModConfig {
+        -boolean confirmTeleport
+        -float uiScale
+        -int animationDuration
+        +load() ModConfig
+        +save() void
+        +validate() boolean
+    }
+
+    class Waypoint {
+        -String id
+        -String name
+        -String command
+        -WaypointColor color
+        -String groupId
+        -LocalDateTime createdAt
+        -LocalDateTime lastUsedAt
+        -int useCount
+        +recordUse() void
+        +validate() boolean
+        +getDisplayCommand() String
+    }
+
+    class WaypointGroup {
+        -String id
+        -String name
+        -WaypointColor color
+        -boolean expanded
+        -List~Waypoint~ waypoints
+        +addWaypoint(Waypoint) void
+        +removeWaypoint(String) boolean
+        +findWaypoint(String) Waypoint
+        +validate() boolean
+    }
+
+    class WaypointManager {
+        -List~WaypointGroup~ groups
+        -DataManager dataManager
+        +addGroup(WaypointGroup) void
+        +removeGroup(String) boolean
+        +findGroup(String) WaypointGroup
+        +getGroups() List~WaypointGroup~
+        +addWaypoint(String, Waypoint) boolean
+        +removeWaypoint(String, String) boolean
+        +findWaypoint(String) Waypoint
+        +executeTeleport(Waypoint) boolean
+        +searchWaypoints(String) List~Waypoint~
+        +importWaypoints(List~WaypointGroup~) int
+        +scheduleSave() void
+        +forceSave() void
+    }
+
+    class WaypointService {
+        -WaypointManager waypointManager
+        +createWaypoint(String, String, String, WaypointColor) Waypoint
+        +updateWaypoint(String, String, String, WaypointColor) boolean
+        +deleteWaypoint(String) boolean
+        +teleportToWaypoint(String) boolean
+        +copyWaypoint(String) Waypoint
+        +searchWaypoints(String) List~Waypoint~
+    }
+
+    class GroupService {
+        -WaypointManager waypointManager
+        +createGroup(String, WaypointColor) WaypointGroup
+        +updateGroup(String, String, WaypointColor) boolean
+        +deleteGroup(String) boolean
+        +toggleGroupExpanded(String) void
+    }
+
+    class TeleportService {
+        -ModConfig config
+        +executeTeleport(Waypoint) boolean
+        +confirmTeleport(Waypoint) void
+        +sendCommand(String) void
+    }
+
+    class ImportExportService {
+        -WaypointManager waypointManager
+        +exportToJson(List~WaypointGroup~, Path) boolean
+        +importFromJson(Path) List~WaypointGroup~
+        +validateImportData(List~WaypointGroup~) boolean
+    }
+
+    class WaypointScreen {
+        -WaypointService waypointService
+        -GroupService groupService
+        -List~WaypointGroup~ groups
+        -WaypointGroup selectedGroup
+        -Waypoint selectedWaypoint
+        -TextFieldWidget searchField
+        +init() void
+        +render(DrawContext, int, int, float) void
+        +mouseClicked(double, double, int) boolean
+    }
+
+    class EditWaypointScreen {
+        -WaypointService waypointService
+        -Waypoint editingWaypoint
+        -WaypointGroup targetGroup
+        -boolean isEditMode
+        -TextFieldWidget nameField
+        -TextFieldWidget commandField
+        -WaypointColor selectedColor
+        +init() void
+        +render(DrawContext, int, int, float) void
+        +saveWaypoint() void
+    }
+
+    class EditGroupScreen {
+        -GroupService groupService
+        -WaypointGroup editingGroup
+        -boolean isEditMode
+        -TextFieldWidget nameField
+        -WaypointColor selectedColor
+        +init() void
+        +render(DrawContext, int, int, float) void
+        +saveGroup() void
+    }
+
+    class ImportExportScreen {
+        -ImportExportService importExportService
+        -WaypointManager waypointManager
+        +init() void
+        +render(DrawContext, int, int, float) void
+        +importWaypoints() void
+        +exportWaypoints() void
+    }
+
+    class ToastNotification {
+        -String message
+        -ToastType type
+        -long displayTime
+        +show() void
+        +render(DrawContext) void
+    }
+
+    class UIConstants {
+        +BG_COLOR: int = 0xFF1E1E2E
+        +PANEL_COLOR: int = 0xFF2D2D44
+        +HEADER_COLOR: int = 0xFF3D3D5C
+        +TEXT_COLOR: int = 0xFFE0E0E0
+        +ACCENT_COLOR: int = 0xFF7C3AED
+        +SUCCESS_COLOR: int = 0xFF4ADE80
+        +DANGER_COLOR: int = 0xFFF87171
+        +PANEL_WIDTH: int = 220
+        +PANEL_HEIGHT: int = 180
+        +PADDING: int = 8
+    }
+
+    class PathConstants {
+        +DATA_DIR: String = "vmtools"
+        +WAYPOINTS_FILE: String = "waypoints.json"
+        +CONFIG_FILE: String = "vmtools.properties"
+    }
+
+    VMToolsClient --> ModConfig
+    VMToolsClient --> WaypointManager
+    VMToolsClient --> KeybindManager
+    VMToolsClient --> WaypointService
+    VMToolsClient --> GroupService
+    VMToolsClient --> TeleportService
+    VMToolsClient --> ImportExportService
+    WaypointManager --> Waypoint
+    WaypointManager --> WaypointGroup
+    WaypointService --> WaypointManager
+    GroupService --> WaypointManager
+    TeleportService --> ModConfig
+    TeleportService --> Waypoint
+    ImportExportService --> WaypointManager
+    ImportExportService --> WaypointGroup
+    WaypointScreen --> WaypointService
+    WaypointScreen --> GroupService
+    EditWaypointScreen --> WaypointService
+    EditGroupScreen --> GroupService
+    ImportExportScreen --> ImportExportService
+    ImportExportScreen --> WaypointManager
