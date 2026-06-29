@@ -1,6 +1,8 @@
 package com.venus.vmtools.feature.waypoint;
 
 import com.venus.vmtools.VMToolsClient;
+import com.venus.vmtools.config.ModConfig;
+import com.venus.vmtools.feature.freeze.FreezeManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.Text;
 
@@ -30,11 +32,18 @@ public class TeleportService {
             return false;
         }
 
+        // 仅对 /res tp 和 /home 命令启用冻结
+        if (shouldFreeze(normalizedCommand)) FreezeManager.getInstance().activate(3000);
+
+        // /res tp：传送前先保存回退坐标
+        final boolean saveBack = isResTp(normalizedCommand);
+
         // 发送命令到服务器
         final String finalCommand = normalizedCommand;
         client.execute(() -> {
             try {
                 // 使用 networkHandler.sendChatCommand 发送命令（不显示在聊天栏）
+                if (saveBack) client.getNetworkHandler().sendChatCommand("edithome resback relocate");
                 client.getNetworkHandler().sendChatCommand(finalCommand);
                 VMToolsClient.LOGGER.info("已发送传送命令: /{}", finalCommand);
 
@@ -53,6 +62,19 @@ public class TeleportService {
         });
 
         return true;
+    }
+
+    private static boolean shouldFreeze(String normalizedCommand) {
+        ModConfig config = VMToolsClient.getInstance().getConfig();
+        if (!config.isFreezeEnabled()) return false;
+        String lower = normalizedCommand.toLowerCase();
+        return lower.startsWith("res tp ") || lower.equals("res tp")
+                || lower.startsWith("home ") || lower.equals("home");
+    }
+
+    private static boolean isResTp(String normalizedCommand) {
+        String lower = normalizedCommand.toLowerCase();
+        return lower.startsWith("res tp ") || lower.equals("res tp");
     }
 
     /**

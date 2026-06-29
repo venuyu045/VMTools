@@ -153,7 +153,7 @@ public class WaypointScreen extends Screen {
         // 底部按钮 - 在屏幕最底部居中
         int btnWidth = 60;
         int btnSpacing = 4;
-        int totalBtnWidth = btnWidth * 5 + btnSpacing * 4;
+        int totalBtnWidth = btnWidth * 6 + btnSpacing * 5;
         int btnStartX = centerX - totalBtnWidth / 2;
         int btnY = this.height - 30;
 
@@ -181,6 +181,11 @@ public class WaypointScreen extends Screen {
                 Text.literal("设置"),
                 button -> MinecraftClient.getInstance().setScreen(new SettingsScreen(this))
         ).dimensions(btnStartX + (btnWidth + btnSpacing) * 4, btnY, btnWidth, BUTTON_HEIGHT).build());
+
+        this.addDrawableChild(ButtonWidget.builder(
+                Text.literal("Back"),
+                button -> sendBackCommand()
+        ).dimensions(btnStartX + (btnWidth + btnSpacing) * 5, btnY, btnWidth, BUTTON_HEIGHT).build());
 
         // 初始化窗口位置（仅新分组）
         updateWindowPositions();
@@ -1168,6 +1173,16 @@ public class WaypointScreen extends Screen {
     /**
      * 复制路径点
      */
+    private void sendBackCommand() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.player == null || mc.getNetworkHandler() == null) {
+            ToastWidget.showError("未连接到服务器");
+            return;
+        }
+        mc.getNetworkHandler().sendChatCommand("home resback");
+        ToastWidget.showSuccess("已发送返回命令: /home resback");
+    }
+
     private void copyWaypoint(Waypoint waypoint, WaypointGroup group) {
         if (waypoint != null && group != null) {
             Waypoint copy = new Waypoint(

@@ -71,6 +71,9 @@ public class ModConfig {
     // 确认传送延迟（毫秒）
     private int confirmDelay = 200;
 
+    // 绕过移动检测（传送时冻结移动包）
+    private boolean freezeEnabled = true;
+
     /**
      * 从文件加载配置
      */
@@ -165,4 +168,8 @@ public class ModConfig {
     public void setConfirmDelay(int confirmDelay) {
         this.confirmDelay = Math.max(100, Math.min(2000, confirmDelay));
     }
+
+    public boolean isFreezeEnabled() { return freezeEnabled; }
+
+    public void setFreezeEnabled(boolean freezeEnabled) { this.freezeEnabled = freezeEnabled; }
 }

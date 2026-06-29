@@ -17,6 +17,7 @@ public class SettingsScreen extends Screen {
     private final ModConfig config;
 
     private ButtonWidget autoConfirmToggle;
+    private ButtonWidget freezeToggle;
     private TextFieldWidget confirmCommandField;
     private TextFieldWidget confirmDelayField;
 
@@ -69,6 +70,16 @@ public class SettingsScreen extends Screen {
         });
         confirmDelayField.setVisible(config.isAutoConfirmTeleport());
         this.addDrawableChild(confirmDelayField);
+
+        // 绕过移动检测开关
+        freezeToggle = ButtonWidget.builder(
+                getToggleText("绕过移动检测", config.isFreezeEnabled()),
+                button -> {
+                    config.setFreezeEnabled(!config.isFreezeEnabled());
+                    button.setMessage(getToggleText("绕过移动检测", config.isFreezeEnabled()));
+                }
+        ).dimensions(centerX - 100, startY + rowHeight * 4, 200, 20).build();
+        this.addDrawableChild(freezeToggle);
 
         // 返回按钮
         this.addDrawableChild(ButtonWidget.builder(
