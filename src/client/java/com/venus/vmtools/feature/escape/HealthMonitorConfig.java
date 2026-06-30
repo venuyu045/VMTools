@@ -29,7 +29,7 @@ public class HealthMonitorConfig {
     private double threshold = 10.0;
 
     // 触发后执行的命令
-    private String command = "/home";
+    private String command = "/ehomes home";
 
     // 是否自动确认（发送命令后自动执行确认命令）
     private boolean autoConfirm = true;
