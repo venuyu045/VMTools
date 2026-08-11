@@ -17,10 +17,8 @@
 - 服务端看不到位置变化 → 延迟传送插件的 `PlayerMoveEvent` 不会触发 → 传送不被取消
 - 设置页面可开关
 
-### Back 返回 v3.1 新增
-- `/res tp` 传送前自动发 `/edithome resback relocate` 保存当前位置
-- 点击底部 **Back** 按钮 → `/home resback` → 回到传送前的位置
-- 解决 Residence 不支持 `/back` 的问题
+### Back 返回
+- 点击底部 **Back** 按钮 → `/back` → 回到上一个位置
 
 ### 自动确认传送
 - 全局开关 + 每个路径点独立开关
