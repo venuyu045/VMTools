@@ -141,9 +141,31 @@ public class WaypointScreen extends Screen {
     protected void init() {
         int centerX = this.width / 2;
 
-        // 搜索框 - 顶部居中
+        // 顶部快捷按钮 - 常用操作（末影箱/发光/Back）
+        int quickBtnWidth = 60;
+        int quickBtnSpacing = 4;
+        int quickTotalWidth = quickBtnWidth * 3 + quickBtnSpacing * 2;
+        int quickStartX = centerX - quickTotalWidth / 2;
+        int quickBtnY = 6;
+
+        this.addRenderableWidget(Button.builder(
+                Component.literal("末影箱"),
+                button -> sendQuickCommand("ec", "/ec")
+        ).bounds(quickStartX, quickBtnY, quickBtnWidth, BUTTON_HEIGHT).build());
+
+        this.addRenderableWidget(Button.builder(
+                Component.literal("发光"),
+                button -> sendQuickCommand("cglow --keep-searching entities @e", "/cglow --keep-searching entities @e")
+        ).bounds(quickStartX + (quickBtnWidth + quickBtnSpacing), quickBtnY, quickBtnWidth, BUTTON_HEIGHT).build());
+
+        this.addRenderableWidget(Button.builder(
+                Component.literal("Back"),
+                button -> sendQuickCommand("back", "/back")
+        ).bounds(quickStartX + (quickBtnWidth + quickBtnSpacing) * 2, quickBtnY, quickBtnWidth, BUTTON_HEIGHT).build());
+
+        // 搜索框 - 顶部居中（下移给顶部快捷按钮让位）
         searchField = new EditBox(this.font,
-                centerX - 100, 8,
+                centerX - 100, 28,
                 200, 18,
                 Component.literal("搜索..."));
         searchField.setHint(Component.literal("搜索路径点...").withStyle(style -> style.withColor(SUBTLE_COLOR)));
@@ -183,8 +205,8 @@ public class WaypointScreen extends Screen {
         ).bounds(btnStartX + (btnWidth + btnSpacing) * 4, btnY, btnWidth, BUTTON_HEIGHT).build());
 
         this.addRenderableWidget(Button.builder(
-                Component.literal("Back"),
-                button -> sendBackCommand()
+                Component.literal("逃逸"),
+                button -> this.minecraft.gui.setScreen(new AutoEscapeScreen())
         ).bounds(btnStartX + (btnWidth + btnSpacing) * 5, btnY, btnWidth, BUTTON_HEIGHT).build());
 
         // 初始化窗口位置（仅新分组）
@@ -304,9 +326,6 @@ public class WaypointScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
-        // 渲染标题
-        drawCenteredText(context, "VMTools - 路径点管理", this.width / 2, 0, ACCENT_COLOR);
-
         // 渲染分组窗口（按 groupRenderOrder 顺序，最后渲染的在最上层）
         int autoLayoutY = 30;
         int centerX = this.width / 2 - WINDOW_WIDTH / 2;
@@ -372,34 +391,6 @@ public class WaypointScreen extends Screen {
         saveUIStateIfNeeded();
 
         super.extractRenderState(context, mouseX, mouseY, delta);
-
-        // 渲染顶部 Tab 栏（最上层）
-        renderTabBar(context, mouseX, mouseY);
-    }
-
-    /**
-     * 渲染顶部 Tab 切换栏
-     */
-    private void renderTabBar(GuiGraphicsExtractor context, int mouseX, int mouseY) {
-        int tabHeight = 14;
-        int tabWidth = 90;
-        int gap = 4;
-        int totalWidth = tabWidth * 2 + gap;
-        int startX = this.width / 2 - totalWidth / 2;
-        int tabY = 12;
-
-        // 路径点管理 Tab（当前活跃）
-        int wpTabX = startX;
-        context.fill(wpTabX, tabY, wpTabX + tabWidth, tabY + tabHeight, ACCENT_COLOR);
-        drawCenteredText(context, "路径点管理", wpTabX + tabWidth / 2, tabY + 2, 0xFFFFFFFF);
-
-        // 自动逃逸 Tab
-        int aeTabX = startX + tabWidth + gap;
-        boolean aeHovered = mouseX >= aeTabX && mouseX <= aeTabX + tabWidth &&
-                mouseY >= tabY && mouseY <= tabY + tabHeight;
-        int aeColor = aeHovered ? HOVER_COLOR : HEADER_COLOR;
-        context.fill(aeTabX, tabY, aeTabX + tabWidth, tabY + tabHeight, aeColor);
-        drawCenteredText(context, "逃逸小工具", aeTabX + tabWidth / 2, tabY + 2, SUBTLE_COLOR);
     }
 
     /**
@@ -668,23 +659,6 @@ public class WaypointScreen extends Screen {
         double mouseX = event.x();
         double mouseY = event.y();
         int button = event.button();
-
-        // Tab 栏点击处理
-        if (button == 0) {
-            int tabHeight = 14;
-            int tabWidth = 90;
-            int gap = 4;
-            int totalWidth = tabWidth * 2 + gap;
-            int startX = this.width / 2 - totalWidth / 2;
-            int tabY = 12;
-            // 自动逃逸 Tab
-            int aeTabX = startX + tabWidth + gap;
-            if (mouseX >= aeTabX && mouseX <= aeTabX + tabWidth &&
-                    mouseY >= tabY && mouseY <= tabY + tabHeight) {
-                this.minecraft.gui.setScreen(new AutoEscapeScreen());
-                return true;
-            }
-        }
 
         // 右键菜单处理
         if (showContextMenu) {
@@ -1168,17 +1142,19 @@ public class WaypointScreen extends Screen {
     }
 
     /**
-     * 发送 Back 命令 — 传送回 /res tp 之前的位置
-     * 前提：传送前已通过 /edithome resback relocate 保存了坐标
+     * 发送快捷命令（顶部快捷按钮共用）
+     *
+     * @param command     实际发送的命令（不含 /）
+     * @param displayName 提示信息中显示的命令文本
      */
-    private void sendBackCommand() {
+    private void sendQuickCommand(String command, String displayName) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.getConnection() == null) {
             ToastWidget.showError("未连接到服务器");
             return;
         }
-        mc.getConnection().sendCommand("home resback");
-        ToastWidget.showSuccess("已发送返回命令: /home resback");
+        mc.getConnection().sendCommand(command);
+        ToastWidget.showSuccess("已发送命令: " + displayName);
     }
 
     /**

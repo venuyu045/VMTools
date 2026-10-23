@@ -8,7 +8,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * 快捷键管理器 - 负责注册和管理所有工具的快捷键
@@ -27,8 +26,8 @@ public class KeybindManager {
         // 注册路径点管理快捷键
         waypointKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.vmtools.waypoints",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_M,
+                InputConstants.Type.KEYBOARD,
+                InputConstants.KEY_M,
                 vmtoolsCategory
         ));
 
