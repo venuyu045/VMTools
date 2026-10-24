@@ -202,6 +202,9 @@ public class EditWaypointScreen extends Screen {
         // 6. 渲染所有 widgets（按钮、文本框等）
         super.render(context, mouseX, mouseY, delta);
 
+        // 全局 Toast 提示（保存/校验失败的反馈）
+        ToastWidget.render(context);
+
         // 7. 渲染分组选择器
         renderGroupCycler(context, mouseX, mouseY);
 

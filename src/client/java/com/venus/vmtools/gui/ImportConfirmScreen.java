@@ -135,6 +135,9 @@ public class ImportConfirmScreen extends Screen {
 
         // 渲染子组件
         super.render(context, mouseX, mouseY, delta);
+
+        // 全局 Toast 提示（保存/校验失败的反馈）
+        ToastWidget.render(context);
     }
 
     private void doImport() {

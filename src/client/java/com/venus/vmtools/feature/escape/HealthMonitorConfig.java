@@ -48,6 +48,11 @@ public class HealthMonitorConfig {
             try {
                 String json = Files.readString(CONFIG_PATH);
                 HealthMonitorConfig config = GSON.fromJson(json, HealthMonitorConfig.class);
+                // Gson 对空文件或 "null" 内容会返回 null，必须回退到默认配置
+                if (config == null) {
+                    LOGGER.warn("血量监控配置文件内容为空，使用默认配置");
+                    return new HealthMonitorConfig();
+                }
                 LOGGER.info("血量监控配置文件已加载");
                 return config;
             } catch (IOException e) {

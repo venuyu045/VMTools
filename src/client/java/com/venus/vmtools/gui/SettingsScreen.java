@@ -1,5 +1,7 @@
 package com.venus.vmtools.gui;
 
+import com.venus.vmtools.gui.component.ToastWidget;
+
 import com.venus.vmtools.VMToolsClient;
 import com.venus.vmtools.config.ModConfig;
 import net.minecraft.client.MinecraftClient;
@@ -115,6 +117,9 @@ public class SettingsScreen extends Screen {
         }
 
         super.render(context, mouseX, mouseY, delta);
+
+        // 全局 Toast 提示（保存/校验失败的反馈）
+        ToastWidget.render(context);
     }
 
     @Override

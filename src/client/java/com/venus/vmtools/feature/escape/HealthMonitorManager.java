@@ -186,8 +186,6 @@ public class HealthMonitorManager {
      */
     public void setThreshold(double threshold) {
         config.setThreshold(threshold);
-        config.save();
-        LOGGER.info("设置血量阈值: {}", threshold);
     }
     
     /**
@@ -195,8 +193,15 @@ public class HealthMonitorManager {
      */
     public void setCommand(String command) {
         config.setCommand(command);
+    }
+
+    /**
+     * 持久化当前配置到磁盘。
+     * 输入框的 responder 逐字符调用 setThreshold/setCommand，只在内存生效，
+     * 离开界面时由本方法统一写盘，避免逐字符文件 IO。
+     */
+    public void saveConfig() {
         config.save();
-        LOGGER.info("设置逃逸命令: {}", command);
     }
     
     /**
