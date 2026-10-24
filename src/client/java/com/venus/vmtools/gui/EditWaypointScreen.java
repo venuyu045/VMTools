@@ -25,6 +25,9 @@ public class EditWaypointScreen extends Screen {
     private static final int PANEL_HEIGHT = 260;
     private static final int PADDING = 12;
 
+    /** 命令输入框最大长度（与 TeleportService 的命令长度上限保持一致） */
+    private static final int COMMAND_MAX_LENGTH = com.venus.vmtools.feature.waypoint.TeleportService.MAX_COMMAND_LENGTH;
+
     // 颜色定义
     private static final int PANEL_COLOR = 0xFF2D2D44;
     private static final int HEADER_COLOR = 0xFF3D3D5C;
@@ -117,6 +120,8 @@ public class EditWaypointScreen extends Screen {
         if (isEditMode) {
             commandField.setValue(editingWaypoint.getCommand());
         }
+        // 限制命令长度，避免超长命令写入数据文件与发往服务器
+        commandField.setMaxLength(COMMAND_MAX_LENGTH);
         this.addRenderableWidget(commandField);
 
         // 分组选择器布局
