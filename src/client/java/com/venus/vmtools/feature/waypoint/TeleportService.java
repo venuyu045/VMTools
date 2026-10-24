@@ -11,6 +11,9 @@ public class TeleportService {
 
     private static final MinecraftClient client = MinecraftClient.getInstance();
 
+    /** 命令最大长度，与 EditWaypointScreen 的输入框上限保持一致 */
+    public static final int MAX_COMMAND_LENGTH = 50;
+
     /**
      * 发送传送命令
      *
@@ -73,6 +76,23 @@ public class TeleportService {
 
         // 检查命令是否为空
         if (command.isEmpty()) {
+            return null;
+        }
+
+        // 拒绝控制字符（换行、回车、制表、NUL 等）。
+        // 命令来自路径点数据/导入 JSON，可能被写入 \n 尝试拆分成多条命令，
+        // 这里在发送前统一拦截，避免协议层出现意外行为。
+        for (int i = 0; i < command.length(); i++) {
+            char c = command.charAt(i);
+            if (c < 0x20 || c == 0x7F) {
+                VMToolsClient.LOGGER.warn("命令包含非法控制字符，已拒绝: U+{}", (int) c);
+                return null;
+            }
+        }
+
+        // 命令长度上限（与输入框限制保持一致，防止导入的超长命令）
+        if (command.length() > MAX_COMMAND_LENGTH) {
+            VMToolsClient.LOGGER.warn("命令超长，已拒绝（{} 字符）", command.length());
             return null;
         }
 
