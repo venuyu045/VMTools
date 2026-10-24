@@ -17,16 +17,16 @@ import net.minecraft.client.Minecraft;
  */
 public class FreezeManager {
 
-    private static FreezeManager instance;
+    private static volatile FreezeManager instance;
 
-    /** 是否处于冻结状态 */
-    private boolean frozen = false;
+    /** 是否处于冻结状态（被 Mixin 注入点与客户端 tick 跨线程读写，需 volatile 保证可见性） */
+    private volatile boolean frozen = false;
 
     /** 冻结开始时间（System.currentTimeMillis） */
-    private long freezeStartTime = 0;
+    private volatile long freezeStartTime = 0;
 
     /** 冻结持续时间（毫秒），默认 3 秒 */
-    private long freezeDuration = 3000;
+    private volatile long freezeDuration = 3000;
 
     private FreezeManager() {}
 
@@ -34,8 +34,13 @@ public class FreezeManager {
      * 获取单例
      */
     public static FreezeManager getInstance() {
+        // isActive() 会被 Mixin 在其它线程调用，双重检查锁保证单例初始化安全
         if (instance == null) {
-            instance = new FreezeManager();
+            synchronized (FreezeManager.class) {
+                if (instance == null) {
+                    instance = new FreezeManager();
+                }
+            }
         }
         return instance;
     }
