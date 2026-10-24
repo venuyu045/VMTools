@@ -61,6 +61,12 @@ public class ToastWidget {
     /**
      * 渲染所有 Toast
      */
+    public static void render(GuiGraphicsExtractor context) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.getWindow() == null) return;
+        render(context, client.getWindow().getGuiScaledWidth(), client.getWindow().getGuiScaledHeight());
+    }
+
     public static void render(GuiGraphicsExtractor context, int screenWidth, int screenHeight) {
         Minecraft client = Minecraft.getInstance();
         if (client.font == null) return;

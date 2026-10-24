@@ -117,6 +117,9 @@ public class EditGroupScreen extends Screen {
         renderColorPicker(context, mouseX, mouseY);
 
         super.extractRenderState(context, mouseX, mouseY, delta);
+
+        // 全局 Toast 提示（保存/校验失败的反馈）
+        ToastWidget.render(context);
     }
 
     /**
