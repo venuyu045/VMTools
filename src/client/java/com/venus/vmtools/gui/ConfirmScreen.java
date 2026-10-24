@@ -105,6 +105,9 @@ public class ConfirmScreen extends Screen {
         drawCenteredText(context, message, centerX, panelY + 45, TEXT_COLOR);
 
         super.extractRenderState(context, mouseX, mouseY, delta);
+
+        // 全局 Toast 提示（保存/删除/校验失败的反馈）
+        ToastWidget.render(context);
     }
 
     @Override

@@ -59,6 +59,24 @@ public class ToastWidget {
     }
 
     /**
+     * 在当前屏幕尺寸下渲染所有 Toast。
+     *
+     * 供各 Screen 在 extractRenderState 末尾统一调用：
+     * Toast 是全局静态列表，但此前只有 WaypointScreen 调用 render()，
+     * 导致编辑/删除/导入等界面里的提示完全不可见。
+     *
+     * @param context 渲染上下文
+     */
+    public static void render(GuiGraphicsExtractor context) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.getWindow() == null) return;
+        // GUI 逻辑坐标 = 实际窗口像素 / GUI 缩放比例
+        int guiWidth = client.getWindow().getGuiScaledWidth();
+        int guiHeight = client.getWindow().getGuiScaledHeight();
+        render(context, guiWidth, guiHeight);
+    }
+
+    /**
      * 渲染所有 Toast
      */
     public static void render(GuiGraphicsExtractor context, int screenWidth, int screenHeight) {

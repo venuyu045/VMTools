@@ -28,6 +28,9 @@ public class EditWaypointScreen extends Screen {
     private static final int PANEL_HEIGHT = 260;
     private static final int PADDING = 12;
 
+    /** 命令输入框最大长度（与逃逸命令输入框保持一致） */
+    private static final int COMMAND_MAX_LENGTH = com.venus.vmtools.feature.waypoint.TeleportService.MAX_COMMAND_LENGTH;
+
     // 颜色定义
     private static final int PANEL_COLOR = 0xFF2D2D44;
     private static final int HEADER_COLOR = 0xFF3D3D5C;
@@ -132,6 +135,8 @@ public class EditWaypointScreen extends Screen {
             commandField.setValue("/"); // 新建时默认带 /
         }
         commandField.setResponder(this::updateSuggestion);
+        // 限制命令长度，避免超长命令写入数据文件与发往服务器
+        commandField.setMaxLength(COMMAND_MAX_LENGTH);
         this.addRenderableWidget(commandField);
 
         // 分组选择器布局
@@ -218,6 +223,9 @@ public class EditWaypointScreen extends Screen {
                 centerX, panelY + PANEL_HEIGHT - 48, getAutoConfirmColor());
 
         super.extractRenderState(context, mouseX, mouseY, delta);
+
+        // 全局 Toast 提示（保存/删除/校验失败的反馈）
+        ToastWidget.render(context);
 
         // 命令补全面板（最上层，必须最后渲染）
         renderSuggestionPanel(context, mouseX, mouseY);
