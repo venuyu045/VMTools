@@ -31,33 +31,34 @@ public class WaypointGroup {
      */
     public void addWaypoint(Waypoint waypoint) {
         waypoint.setGroupId(this.id);
-        waypoints.add(waypoint);
+        getWaypoints().add(waypoint);
     }
 
     /**
      * 移除路径点
      */
     public boolean removeWaypoint(String waypointId) {
-        return waypoints.removeIf(wp -> wp.getId().equals(waypointId));
+        return getWaypoints().removeIf(wp -> wp.getId().equals(waypointId));
     }
 
     /**
      * 移动路径点位置（拖拽排序）
      */
     public void moveWaypoint(int fromIndex, int toIndex) {
-        if (fromIndex < 0 || fromIndex >= waypoints.size() ||
-            toIndex < 0 || toIndex > waypoints.size() ||
+        List<Waypoint> list = getWaypoints();
+        if (fromIndex < 0 || fromIndex >= list.size() ||
+            toIndex < 0 || toIndex > list.size() ||
             fromIndex == toIndex) return;
-        Waypoint wp = waypoints.remove(fromIndex);
+        Waypoint wp = list.remove(fromIndex);
         int insertIndex = toIndex > fromIndex ? toIndex - 1 : toIndex;
-        waypoints.add(insertIndex, wp);
+        list.add(insertIndex, wp);
     }
 
     /**
      * 查找路径点
      */
     public Waypoint findWaypoint(String waypointId) {
-        return waypoints.stream()
+        return getWaypoints().stream()
                 .filter(wp -> wp.getId().equals(waypointId))
                 .findFirst()
                 .orElse(null);
@@ -67,7 +68,7 @@ public class WaypointGroup {
      * 获取路径点数量
      */
     public int getWaypointCount() {
-        return waypoints.size();
+        return getWaypoints().size();
     }
 
     /**
@@ -80,6 +81,11 @@ public class WaypointGroup {
     // Getters and Setters
 
     public String getId() {
+        // Gson 反序列化不调用构造函数，损坏/手改数据中 id 可能为 null；
+        // 调用方普遍使用 getId().equals(...)，此处惰性补全避免 NPE
+        if (id == null) {
+            id = UUID.randomUUID().toString().substring(0, 8);
+        }
         return id;
     }
 
@@ -108,10 +114,15 @@ public class WaypointGroup {
     }
 
     public List<Waypoint> getWaypoints() {
+        // Gson 反序列化不会调用构造函数，旧数据/损坏数据中 waypoints 可能为 null，
+        // 这里做惰性修复，避免渲染与保存路径 NPE
+        if (waypoints == null) {
+            waypoints = new ArrayList<>();
+        }
         return waypoints;
     }
 
     public void setWaypoints(List<Waypoint> waypoints) {
-        this.waypoints = waypoints;
+        this.waypoints = waypoints != null ? waypoints : new ArrayList<>();
     }
 }

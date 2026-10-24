@@ -45,6 +45,9 @@ public class Waypoint {
      * 获取显示用的命令（截断过长的命令）
      */
     public String getDisplayCommand() {
+        if (command == null) {
+            return "";
+        }
         if (command.length() > 30) {
             return command.substring(0, 27) + "...";
         }
@@ -54,6 +57,11 @@ public class Waypoint {
     // Getters and Setters
 
     public String getId() {
+        // Gson 反序列化不调用构造函数，损坏/手改数据中 id 可能为 null；
+        // 调用方普遍使用 getId().equals(...)，此处惰性补全避免 NPE
+        if (id == null) {
+            id = UUID.randomUUID().toString().substring(0, 8);
+        }
         return id;
     }
 

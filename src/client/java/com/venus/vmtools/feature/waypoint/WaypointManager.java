@@ -72,8 +72,10 @@ public class WaypointManager {
         // 主文件失败，尝试加载备份
         if (loadFromFile(BACKUP_PATH)) {
             VMToolsClient.LOGGER.warn("主文件损坏，从备份恢复了 {} 个分组", groups.size());
-            // 恢复后立即保存到主文件
-            save();
+            // 恢复后立即写回主文件。
+            // 注意：这里不能调用 save()，因为 save() 会先把（已损坏的）主文件复制到
+            // BACKUP_PATH，从而把唯一完好的备份覆盖掉，导致数据永久丢失。
+            writeDataFile();
             return;
         }
 
@@ -101,17 +103,23 @@ public class WaypointManager {
                     this.groups = wrapper.groups;
                     return true;
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                VMToolsClient.LOGGER.warn("主数据格式解析失败，尝试旧格式", e);
+            }
 
             // 兼容旧格式（直接是数组）
             try {
                 Type listType = new TypeToken<List<WaypointGroup>>(){}.getType();
                 List<WaypointGroup> loaded = GSON.fromJson(json, listType);
-                if (loaded != null && !loaded.isEmpty()) {
+                // 空列表也是合法数据（用户可能删光了所有分组），
+                // 不能因为 isEmpty() 就判定为读取失败，否则会被当成损坏而回退备份/重建默认分组
+                if (loaded != null) {
                     this.groups = loaded;
                     return true;
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                VMToolsClient.LOGGER.warn("旧格式数据解析失败", e);
+            }
 
             return false;
         } catch (IOException e) {
@@ -135,8 +143,22 @@ public class WaypointManager {
                     VMToolsClient.LOGGER.warn("备份文件创建失败", e);
                 }
             }
+        } catch (IOException e) {
+            VMToolsClient.LOGGER.error("保存路径点数据失败", e);
+            return;
+        }
 
-            // 保存新数据
+        writeDataFile();
+    }
+
+    /**
+     * 只写入主数据文件，不触碰备份文件。
+     * 用于「从备份恢复后写回主文件」的场景，避免损坏的主文件覆盖掉唯一完好的备份。
+     */
+    private void writeDataFile() {
+        try {
+            Files.createDirectories(CONFIG_DIR);
+
             DataWrapper wrapper = new DataWrapper();
             wrapper.dataVersion = CURRENT_DATA_VERSION;
             wrapper.groups = this.groups;
@@ -296,8 +318,11 @@ public class WaypointManager {
      * 搜索路径点
      */
     public List<Waypoint> searchWaypoints(String keyword) {
-        String lowerKeyword = keyword.toLowerCase();
         List<Waypoint> results = new ArrayList<>();
+        if (keyword == null) {
+            return results;
+        }
+        String lowerKeyword = keyword.toLowerCase();
         for (WaypointGroup group : groups) {
             for (Waypoint wp : group.getWaypoints()) {
                 if (wp.getName().toLowerCase().contains(lowerKeyword) ||

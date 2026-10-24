@@ -183,20 +183,29 @@ public class AutoEscapeManager {
 
     /**
      * 设置Y坐标阈值
+     *
+     * 注意：本方法由 EditBox 的 responder 驱动，每输入一个字符就会被调用一次。
+     * 这里只更新内存，不写磁盘；持久化统一由 {@link #saveConfig()} 在界面关闭时完成，
+     * 避免逐字符触发文件 IO。
      */
     public void setThreshold(double threshold) {
         config.setThreshold(threshold);
-        config.save();
-        LOGGER.info("设置逃逸阈值: {}", threshold);
     }
 
     /**
      * 设置逃逸命令
+     *
+     * 同 {@link #setThreshold(double)}，逐字符调用，不在此处写磁盘。
      */
     public void setCommand(String command) {
         config.setCommand(command);
+    }
+
+    /**
+     * 持久化当前配置到磁盘
+     */
+    public void saveConfig() {
         config.save();
-        LOGGER.info("设置逃逸命令: {}", command);
     }
 
     /**
