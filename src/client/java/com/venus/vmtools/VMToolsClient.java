@@ -7,6 +7,7 @@ import com.venus.vmtools.feature.waypoint.WaypointManager;
 import com.venus.vmtools.keybind.KeybindManager;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,6 +52,13 @@ public class VMToolsClient implements ClientModInitializer {
         // 注册关闭事件，保存数据
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             saveAll();
+        });
+
+        // 断开连接时重置逃逸触发状态：
+        // triggered 为 true 时不会再次触发，若不重置，切换服务器/世界后逃逸功能会一直失效
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            autoEscapeManager.resetTriggerState();
+            healthMonitorManager.resetTriggerState();
         });
 
         LOGGER.info("[{}] 初始化完成！", MOD_NAME);

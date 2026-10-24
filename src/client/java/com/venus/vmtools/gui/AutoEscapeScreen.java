@@ -385,6 +385,9 @@ public class AutoEscapeScreen extends Screen {
             int gap = 4;
             int startX = this.width / 2 - (TAB_W * 2 + gap) / 2;
             if (mouseX >= startX && mouseX <= startX + TAB_W && mouseY >= 0 && mouseY <= TAB_H) {
+                // 该路径直接切屏，不经过 close()，需在此同步落盘
+                AutoEscapeManager.getInstance().saveConfig();
+                HealthMonitorManager.getInstance().saveConfig();
                 saveToolStates();
                 this.client.setScreen(new WaypointScreen());
                 return true;
@@ -538,6 +541,9 @@ public class AutoEscapeScreen extends Screen {
 
     @Override
     public void close() {
+        // 输入框的 responder 只更新内存，离开界面时统一落盘一次
+        AutoEscapeManager.getInstance().saveConfig();
+        HealthMonitorManager.getInstance().saveConfig();
         saveToolStates();
         this.client.setScreen(null);
     }
